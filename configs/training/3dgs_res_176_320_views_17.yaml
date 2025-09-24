@@ -1,0 +1,9 @@
+output_dir: outputs/training/3dgs_res_176_320_views_17
+img_size: [176, 320]
+num_views: 34
+num_input_views: 17
+gs_view_chunk_size: 1
+num_input_multi_views: 1
+batch_size: 4
+load_latents: False
+max_train_steps: 10000

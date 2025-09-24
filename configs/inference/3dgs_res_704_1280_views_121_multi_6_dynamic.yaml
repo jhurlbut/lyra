@@ -1,0 +1,19 @@
+config_path: outputs/training/3dgs_res_704_1280_views_121_multi_6_dynamic/config.yaml
+out_dir_inference: outputs/inference/3dgs_res_704_1280_views_121_multi_6_dynamic
+
+static_view_indices_fixed: ['5', '0', '1', '2', '3', '4']
+target_index_subsample: 4
+
+# For dynamic scenes, set target time
+set_manual_time_idx: true
+
+# Only create outputs for specified target times
+target_index_manual: [0, 60, 120]
+
+dataset_name: lyra_dynamic_demo
+
+# Alternative: Loop over start and number of time indices with given stride
+# target_index_manual: null
+# target_index_manual_stride: 1
+# target_index_manual_start_idx: 0
+# target_index_manual_num_idx: 121

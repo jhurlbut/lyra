@@ -1,0 +1,10 @@
+output_dir: outputs/training/3dgs_res_704_1280_views_121
+img_size: [704, 1280]
+num_views: 130
+num_input_views: 121
+gs_view_chunk_size: 1
+num_input_multi_views: 1
+batch_size: 1
+lpips_chunk_size: 1
+checkpointing_steps: 200
+max_train_steps: 75000

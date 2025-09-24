@@ -1,0 +1,21 @@
+# Save all renderings etc. in this folder
+out_dir_inference: outputs/demo/lyra_static
+
+# Define dataset name defined in src/models/data/registry.py
+dataset_name: lyra_static_demo # Use pre-generated latents
+# dataset_name: lyra_static_demo_generated # Generate own latents
+
+# Order of camera trajectory indices
+static_view_indices_fixed: ['5', '0', '1', '2', '3', '4']
+
+# Only render each 4. frame
+target_index_subsample: 4
+
+# For static scenes, do not set target time
+set_manual_time_idx: true
+
+# Inherit from these configs the model part etc.
+config_path: [configs/training/default.yaml, configs/training/3dgs_res_704_1280_views_121_multi_6_prune.yaml]
+
+# Update path to where the static Lyra checkpoint is downloaded
+ckpt_path: checkpoints/Lyra/lyra_static.pt

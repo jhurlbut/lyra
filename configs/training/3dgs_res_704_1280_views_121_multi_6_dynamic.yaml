@@ -1,0 +1,16 @@
+output_dir: outputs/training/3dgs_res_704_1280_views_121_multi_6_dynamic
+data_mode: [['lyra_dynamic', 1]]
+img_size: [704, 1280]
+num_views: 133
+num_input_views: 121
+gs_view_chunk_size: 1
+num_input_multi_views: 6
+batch_size: 1
+static_view_indices_sampling: random_bucket
+static_frame_sampling: exponential
+lpips_chunk_size: 1
+use_time_embedding: true
+# use flipped supervision
+select_target_views_input_dynamic: false
+checkpointing_steps: 50
+max_train_steps: 90000
