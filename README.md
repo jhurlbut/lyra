@@ -50,10 +50,11 @@ CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) torchrun --nproc_per_node=1 cosmos_pre
     --input_image_path assets/demo/static/diffusion_input/images/00172.png \
     --video_save_folder assets/demo/static/diffusion_output_generated \
     --foreground_masking \
-    --multi_trajectory
+    --multi_trajectory \
+    --total_movement_distance_factor 1.0
 ```
 
-If you want to skip the diffusion part, we have pre-generated the latents in assets/demo/static/diffusion_output. By default we use pre-generated latents, change dataset_name in configs/demo/lyra_static.yaml from lyra_static_demo to lyra_static_demo_generated to use your own generated latents.
+Increase total_movement_distance_factor to 2.0 for more camera motion, though it can create more artifacts in object-centric scenes. If you want to skip the diffusion part, we have pre-generated the latents in assets/demo/static/diffusion_output. By default we use pre-generated latents, change dataset_name in configs/demo/lyra_static.yaml from lyra_static_demo to lyra_static_demo_generated to use your own generated latents.
 
 2) Reconstruct multi-view video latents with the 3DGS decoder (change dataset_name in the .yaml to generated path if 1. was done)
 

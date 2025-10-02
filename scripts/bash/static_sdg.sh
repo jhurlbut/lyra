@@ -4,4 +4,5 @@ CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) torchrun --nproc_per_node=1 cosmos_pre
     --input_image_path assets/demo/static/diffusion_input/images/00172.png \
     --video_save_folder assets/demo/static/diffusion_output_generated \
     --foreground_masking \
-    --multi_trajectory
+    --multi_trajectory \
+    --total_movement_distance_factor 1.0
