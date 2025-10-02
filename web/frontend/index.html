@@ -8,9 +8,9 @@
     <script type="importmap">
     {
         "imports": {
-            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
-            "@sparkjsdev/spark": "https://unpkg.com/@sparkjsdev/spark@latest/dist/spark.module.js"
+            "three": "https://unpkg.com/three@0.178.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.178.0/examples/jsm/",
+            "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/0.1.9/spark.module.js"
         }
     }
     </script>
@@ -97,6 +97,9 @@
                 <h2>3D Gaussian Splat Viewer</h2>
                 <div class="viewer-controls">
                     <button id="reset-camera" class="btn-secondary">Reset Camera</button>
+                    <button id="translate-mode" class="btn-secondary">Move</button>
+                    <button id="rotate-mode" class="btn-secondary">Rotate</button>
+                    <button id="scale-mode" class="btn-secondary">Scale</button>
                     <button id="download-ply" class="btn-primary">Download PLY</button>
                 </div>
                 <div id="viewer-container" class="viewer-container"></div>

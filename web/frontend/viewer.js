@@ -1,14 +1,33 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { SplatMesh } from '@sparkjsdev/spark';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 // Viewer state
 let scene, camera, renderer, controls;
 let splatMesh = null;
 let animationId = null;
+let transformControls = null;
+
+// Reference point system
+let raycaster = null;
+let mouse = new THREE.Vector2();
+let referencePointMode = false;
+let referencePoint = null;
+let referencePointIndicator = null;
 
 export function initViewer() {
     const container = document.getElementById('viewer-container');
+    
+    // Ensure container has dimensions
+    if (!container) {
+        console.error('Viewer container not found');
+        return;
+    }
+    
+    // Get actual dimensions (fallback to defaults if 0)
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 600;
+    console.log('Initializing viewer with dimensions:', width, height);
 
     // Scene
     scene = new THREE.Scene();
@@ -17,7 +36,7 @@ export function initViewer() {
     // Camera
     camera = new THREE.PerspectiveCamera(
         75,
-        container.clientWidth / container.clientHeight,
+        width / height,
         0.1,
         1000
     );
@@ -25,7 +44,7 @@ export function initViewer() {
 
     // Renderer
     renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(renderer.domElement);
 
@@ -59,6 +78,53 @@ export function initViewer() {
 
     // Start animation loop
     animate();
+    
+    // Initialize transform controls after everything is set up
+    initTransformControls();
+}
+
+function initTransformControls() {
+    try {
+        if (!camera || !renderer || !scene) {
+            console.error('Cannot initialize TransformControls: missing camera, renderer, or scene');
+            return;
+        }
+        
+        // Based on official Three.js examples, TransformControls might extend Object3D
+        // but in different versions or builds this can vary. Let's use a more robust approach.
+        console.log('Creating TransformControls...');
+        transformControls = new TransformControls(camera, renderer.domElement);
+        
+        // Modern Three.js TransformControls should extend Object3D, but let's handle edge cases
+        console.log('TransformControls type:', typeof transformControls);
+        console.log('TransformControls constructor:', transformControls.constructor.name);
+        
+        // Try direct addition first (this is the correct approach in most cases)
+        scene.add(transformControls);
+        console.log('TransformControls added to scene');
+        
+        // Set up event listeners
+        transformControls.addEventListener('dragging-changed', (event) => {
+            controls.enabled = !event.value;
+        });
+        
+        transformControls.addEventListener('change', () => {
+            renderer.render(scene, camera);
+        });
+        
+        // Make transformControls available globally for UI controls
+        window.transformControls = transformControls;
+        
+        console.log('TransformControls initialized successfully');
+        
+    } catch (error) {
+        console.error('Error with TransformControls:', error);
+        
+        // Fallback: Try to work without TransformControls
+        console.log('Continuing without TransformControls - manual transforms only');
+        transformControls = null;
+        window.transformControls = null;
+    }
 }
 
 function animate() {
@@ -70,88 +136,152 @@ function animate() {
 
 function onWindowResize() {
     const container = document.getElementById('viewer-container');
+    
+    if (!container || !camera || !renderer) return;
+    
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 600;
 
-    camera.aspect = container.clientWidth / container.clientHeight;
+    camera.aspect = width / height;
     camera.updateProjectionMatrix();
 
-    renderer.setSize(container.clientWidth, container.clientHeight);
+    renderer.setSize(width, height);
 }
 
 export async function loadPLY(url) {
     try {
-        // Remove existing splat mesh
+        console.log('Loading Gaussian Splat PLY from:', url);
+        
+        // Remove existing mesh
         if (splatMesh) {
             scene.remove(splatMesh);
             splatMesh = null;
         }
 
-        // Load new splat mesh
-        splatMesh = new SplatMesh({ url });
+        // Dynamically import SparkJS (ES module)
+        const Spark = await import('@sparkjsdev/spark');
+        console.log('SparkJS loaded:', Spark);
 
-        // Wait for splat to load
-        await new Promise((resolve, reject) => {
-            const checkLoaded = setInterval(() => {
-                if (splatMesh.ready) {
-                    clearInterval(checkLoaded);
-                    resolve();
+        // Create SplatMesh with the PLY URL and onLoad callback
+        return new Promise((resolve, reject) => {
+            splatMesh = new Spark.SplatMesh({ 
+                url: url,
+                onLoad: (mesh) => {
+                    console.log('Splat mesh loaded successfully via onLoad callback!');
+                    
+                    // Add to scene first
+                    scene.add(mesh);
+                    console.log('SplatMesh added to scene');
+                    
+                    // Get accurate bounding box using SparkJS method
+                    let box, center, size;
+                    try {
+                        // Use SparkJS getBoundingBox for accurate bounds
+                        box = mesh.getBoundingBox(false); // false = include splat scales for accuracy
+                        center = box.getCenter(new THREE.Vector3());
+                        size = box.getSize(new THREE.Vector3());
+                        console.log('Using SparkJS getBoundingBox');
+                    } catch (e) {
+                        // Fallback to Three.js method if SparkJS method fails
+                        box = new THREE.Box3().setFromObject(mesh);
+                        center = box.getCenter(new THREE.Vector3());
+                        size = box.getSize(new THREE.Vector3());
+                        console.log('Using Three.js Box3.setFromObject fallback');
+                    }
+                    
+                    console.log('Bounding box:', { center, size });
+                    
+                    // Fix coordinate system orientation (OpenCV/COLMAP to OpenGL/Three.js)
+                    mesh.quaternion.set(1, 0, 0, 0);
+                    
+                    // Calculate appropriate scale - make it 5x bigger than before
+                    const maxDim = Math.max(size.x, size.y, size.z);
+                    const targetSize = 20; // 5x bigger than the original 4 units
+                    const scaleFactor = maxDim > 0 ? targetSize / maxDim : 1;
+                    mesh.scale.setScalar(scaleFactor);
+                    
+                    // Position the mesh so its bottom (min Y) is at Y=0 and back (max Z) is at Z=0
+                    // First center it at origin
+                    mesh.position.sub(center);
+                    // Then shift it up by half the scaled height so bottom is at 0
+                    const scaledHeight = size.y * scaleFactor;
+                    mesh.position.y = scaledHeight / 2;
+                    // And shift it forward by half the scaled depth so back is at 0
+                    const scaledDepth = size.z * scaleFactor;
+                    mesh.position.z = -scaledDepth / 2;
+                    
+                    console.log(`Scaled by ${scaleFactor} to fit target size of ${targetSize} units`);
+                    console.log(`Positioned with bottom at Y=0, back at Z=0`);
+                    console.log(`Shifted up by ${scaledHeight / 2}, forward by ${scaledDepth / 2}`);
+                    
+                    // Position camera for typical reconstruction viewpoint (closer and better angle)
+                    const viewDistance = targetSize * 2.0;  // Closer than previous 2.5x
+                    camera.position.set(0, scaledHeight * 0.3, viewDistance);
+                    camera.lookAt(0, scaledHeight * 0.4, 0);  // Look at mid-height
+                    
+                    // Update controls target to center of model
+                    controls.target.set(0, scaledHeight / 2, 0);
+                    controls.update();
+                    
+                    // Attach transform controls to the mesh
+                    if (transformControls) {
+                        transformControls.attach(mesh);
+                    }
+                    
+                    // Make viewer section visible
+                    const viewerSection = document.getElementById('viewer-section');
+                    if (viewerSection) {
+                        viewerSection.style.display = 'block';
+                    }
+                    
+                    console.log('Gaussian splat loaded and displayed with SparkJS!');
+                    resolve(true);
                 }
-            }, 100);
-
-            // Timeout after 30 seconds
+            });
+            
+            // Add error timeout
             setTimeout(() => {
-                clearInterval(checkLoaded);
-                reject(new Error('Timeout loading PLY file'));
+                reject(new Error('Timeout loading splat mesh after 30 seconds'));
             }, 30000);
         });
 
-        // Add to scene
-        scene.add(splatMesh);
-
-        // Center the splat mesh
-        centerMesh(splatMesh);
-
-        // Reset camera to view the mesh
-        fitCameraToMesh(splatMesh);
-
-        console.log('PLY loaded successfully');
-
     } catch (error) {
-        console.error('Error loading PLY:', error);
+        console.error('Error loading Gaussian splat with SparkJS:', error);
+        
+        // Show error in viewer
+        const container = document.getElementById('viewer-container');
+        if (container) {
+            container.innerHTML = `
+                <div style="padding: 40px; text-align: center; color: #f59e0b;">
+                    <h3>⚠️ Loading Issue</h3>
+                    <p style="font-size: 0.9em; margin-top: 10px; color: #94a3b8;">
+                        ${error.message}
+                    </p>
+                </div>
+            `;
+        }
+        
+        // Still show the viewer section
+        const viewerSection = document.getElementById('viewer-section');
+        if (viewerSection) {
+            viewerSection.style.display = 'block';
+        }
+        
         throw error;
     }
 }
 
-function centerMesh(mesh) {
-    // Compute bounding box
-    const box = new THREE.Box3().setFromObject(mesh);
-    const center = box.getCenter(new THREE.Vector3());
-
-    // Center mesh
-    mesh.position.sub(center);
-}
-
-function fitCameraToMesh(mesh) {
-    // Compute bounding box
-    const box = new THREE.Box3().setFromObject(mesh);
-    const size = box.getSize(new THREE.Vector3());
-    const maxDim = Math.max(size.x, size.y, size.z);
-
-    // Calculate camera distance
-    const fov = camera.fov * (Math.PI / 180);
-    const cameraDistance = Math.abs(maxDim / Math.sin(fov / 2)) * 1.5;
-
-    // Position camera
-    camera.position.set(cameraDistance, cameraDistance, cameraDistance);
-    camera.lookAt(0, 0, 0);
-
-    // Update controls
-    controls.target.set(0, 0, 0);
-    controls.update();
-}
 
 export function resetCamera() {
     if (splatMesh) {
-        fitCameraToMesh(splatMesh);
+        // Reset camera to view the scaled and positioned mesh with improved positioning
+        const targetSize = 20; // Same as used in loadPLY (5x bigger)
+        const viewDistance = targetSize * 2.0; // Closer than previous 2.5x
+        const modelHeight = targetSize; // Approximate height based on scaling
+        camera.position.set(0, modelHeight * 0.3, viewDistance);
+        camera.lookAt(0, modelHeight * 0.4, 0); // Look at mid-height
+        controls.target.set(0, modelHeight / 2, 0);
+        controls.update();
     } else {
         camera.position.set(0, 0, 5);
         camera.lookAt(0, 0, 0);

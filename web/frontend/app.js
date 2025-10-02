@@ -40,7 +40,7 @@ const jobsList = document.getElementById('jobs-list');
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initializeUpload();
-    initializeViewer();
+    initViewer();  // Fixed: should be initViewer from viewer.js
     loadJobHistory();
 });
 
@@ -81,6 +81,25 @@ function initializeUpload() {
 
     resetCameraBtn.addEventListener('click', resetCamera);
     downloadPlyBtn.addEventListener('click', downloadPLY);
+
+    // Transform controls event handlers
+    document.getElementById('translate-mode').addEventListener('click', () => {
+        if (window.transformControls) {
+            window.transformControls.setMode('translate');
+        }
+    });
+
+    document.getElementById('rotate-mode').addEventListener('click', () => {
+        if (window.transformControls) {
+            window.transformControls.setMode('rotate');
+        }
+    });
+
+    document.getElementById('scale-mode').addEventListener('click', () => {
+        if (window.transformControls) {
+            window.transformControls.setMode('scale');
+        }
+    });
 
     closeErrorBtn.addEventListener('click', () => errorModal.style.display = 'none');
 }
@@ -289,7 +308,37 @@ function displayVideos(videos) {
 
         const label = document.createElement('div');
         label.className = 'video-label';
-        label.textContent = videoPath.split('/').pop();
+        
+        // Create user-friendly labels based on filename
+        const filename = videoPath.split('/').pop();
+        let friendlyName = filename;
+        
+        // Map technical filenames to user-friendly descriptions
+        if (filename.includes('rgb_wave')) {
+            friendlyName = '🌊 Gaussian Splat Wave Animation';
+        } else if (filename.includes('rgb_0_view_idx')) {
+            friendlyName = '📹 Multi-View Rendering';
+        } else if (filename === 'rgb_0.mp4') {
+            friendlyName = '🎬 Primary Reconstruction View';
+        } else if (filename === 'sample_0.mp4') {
+            friendlyName = '✨ Sample Output Visualization';
+        } else if (filename.includes('left')) {
+            friendlyName = '⬅️ Left Trajectory Video';
+        } else if (filename.includes('right')) {
+            friendlyName = '➡️ Right Trajectory Video';  
+        } else if (filename.includes('up')) {
+            friendlyName = '⬆️ Upward Trajectory Video';
+        } else if (filename.includes('zoom_in')) {
+            friendlyName = '🔍 Zoom In Trajectory';
+        } else if (filename.includes('zoom_out')) {
+            friendlyName = '🔎 Zoom Out Trajectory';
+        } else if (filename.includes('clockwise')) {
+            friendlyName = '🔄 Clockwise Rotation Video';
+        } else if (filename.includes('depth')) {
+            friendlyName = '🏔️ Depth Map Visualization';
+        }
+        
+        label.textContent = friendlyName;
 
         videoCard.appendChild(video);
         videoCard.appendChild(label);
