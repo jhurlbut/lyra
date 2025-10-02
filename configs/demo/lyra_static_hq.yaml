@@ -1,0 +1,34 @@
+# High-Quality Static Scene Inference Configuration
+# Optimized for better Gaussian splatting quality with reduced artifacts
+
+# Save all renderings etc. in this folder
+out_dir_inference: outputs/demo/lyra_static_hq
+
+# Define dataset name defined in src/models/data/registry.py
+# Use your high-quality generated latents
+dataset_name: lyra_static_demo_generated_hq
+
+# Order of camera trajectory indices (chronological order for smoother transitions)
+static_view_indices_fixed: ['0', '1', '2', '3', '4', '5']
+
+# Render more frames (every 2nd frame instead of every 4th)
+target_index_subsample: 2
+
+# For static scenes, do not set target time
+set_manual_time_idx: true
+
+# Inherit from these configs the model part etc.
+config_path: [configs/training/default.yaml, configs/training/3dgs_res_704_1280_views_121_multi_6_prune.yaml]
+
+# Update path to where the static Lyra checkpoint is downloaded
+ckpt_path: checkpoints/Lyra/lyra_static.pt
+
+# Enable high-quality PLY export with pruning
+save_gaussians_orig: true
+
+# Additional quality settings
+save_gt_input: true
+save_gt_depth: true
+save_video_input: false
+save_rgb_decoding: false
+out_fps: 24

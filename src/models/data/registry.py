@@ -87,9 +87,28 @@ dataset_registry['lyra_static_demo'] = {
 # Static demo (self-generated)
 
 dataset_registry['lyra_static_demo_generated'] = {
-    'cls': RadymWrapper, 
+    'cls': RadymWrapper,
     'kwargs': {
         "root_path": "assets/demo/static/diffusion_output_generated",
+        "is_static": True,
+        "is_multi_view": True,
+        "has_latents": True,
+        "is_generated_cosmos_latent": True,
+        "is_w2c": True,
+        "sampling_buckets": [['0'], ['1'], ['2'], ['3'], ['4'], ['5']],
+        "start_view_idx": 0,
+    },
+    'scene_scale': 1.,
+    'max_gap': 121,
+    'min_gap': 45,
+}
+
+# Static demo (self-generated high-quality)
+
+dataset_registry['lyra_static_demo_generated_hq'] = {
+    'cls': RadymWrapper,
+    'kwargs': {
+        "root_path": "assets/demo/static/diffusion_output_generated_hq",
         "is_static": True,
         "is_multi_view": True,
         "has_latents": True,

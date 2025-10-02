@@ -1,0 +1,282 @@
+"""Pipeline execution for Lyra Gaussian Splatting"""
+import asyncio
+import os
+import re
+from pathlib import Path
+from typing import AsyncGenerator, Callable, Optional
+import yaml
+
+from config import (
+    BASE_DIR, LYRA_ROOT, SDG_SCRIPT, SAMPLE_SCRIPT,
+    DEFAULT_SDG_PARAMS, CONFIGS_DIR
+)
+from job_manager import JobManager, JobStatus, PipelineStage
+
+
+class PipelineRunner:
+    def __init__(self, job_manager: JobManager):
+        self.job_manager = job_manager
+
+    async def run_pipeline(
+        self,
+        job_id: str,
+        image_path: Path,
+        output_dir: Path,
+        log_callback: Optional[Callable[[str], None]] = None
+    ):
+        """Run the complete pipeline: SDG + 3DGS reconstruction"""
+        try:
+            # Check if can start job
+            if not await self.job_manager.can_start_job():
+                self.job_manager.update_job_status(
+                    job_id, JobStatus.FAILED,
+                    "Another job is already running. Please wait."
+                )
+                return
+
+            await self.job_manager.set_active_job(job_id)
+
+            # Create output directories
+            latent_output_dir = output_dir / "latents"
+            reconstruction_output_dir = output_dir / "reconstruction"
+            latent_output_dir.mkdir(parents=True, exist_ok=True)
+            reconstruction_output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Step 1: SDG Latent Generation
+            self.job_manager.update_job_stage(job_id, PipelineStage.SDG, 0)
+            await self._log(job_id, "=== Starting SDG Latent Generation ===", log_callback)
+
+            success = await self._run_sdg(
+                job_id, image_path, latent_output_dir, log_callback
+            )
+
+            if not success:
+                raise Exception("SDG latent generation failed")
+
+            await self._log(job_id, "=== SDG Latent Generation Complete ===", log_callback)
+
+            # Step 2: 3DGS Reconstruction
+            self.job_manager.update_job_stage(job_id, PipelineStage.RECONSTRUCTION, 50)
+            await self._log(job_id, "=== Starting 3DGS Reconstruction ===", log_callback)
+
+            # Create dynamic config for this job
+            config_path = await self._create_job_config(
+                job_id, latent_output_dir, reconstruction_output_dir
+            )
+
+            success = await self._run_reconstruction(
+                job_id, config_path, log_callback
+            )
+
+            if not success:
+                raise Exception("3DGS reconstruction failed")
+
+            await self._log(job_id, "=== 3DGS Reconstruction Complete ===", log_callback)
+
+            # Scan for output files
+            await self._scan_outputs(job_id, reconstruction_output_dir)
+
+            # Mark as completed
+            self.job_manager.update_job_status(job_id, JobStatus.COMPLETED)
+            self.job_manager.update_job_stage(job_id, PipelineStage.FINISHED, 100)
+            await self._log(job_id, "=== Pipeline Complete! ===", log_callback)
+
+        except Exception as e:
+            error_msg = f"Pipeline failed: {str(e)}"
+            await self._log(job_id, f"ERROR: {error_msg}", log_callback)
+            self.job_manager.update_job_status(job_id, JobStatus.FAILED, error_msg)
+        finally:
+            await self.job_manager.clear_active_job()
+
+    async def _run_sdg(
+        self,
+        job_id: str,
+        image_path: Path,
+        output_dir: Path,
+        log_callback: Optional[Callable[[str], None]]
+    ) -> bool:
+        """Run SDG latent generation"""
+        # Build command
+        cmd = [
+            "torchrun",
+            "--nproc_per_node=1",
+            str(SDG_SCRIPT),
+            "--checkpoint_dir", "checkpoints",
+            "--num_gpus", "1",
+            "--input_image_path", str(image_path),
+            "--video_save_folder", str(output_dir),
+            "--num_steps", str(DEFAULT_SDG_PARAMS["num_steps"]),
+            "--guidance", str(DEFAULT_SDG_PARAMS["guidance"]),
+            "--filter_points_threshold", str(DEFAULT_SDG_PARAMS["filter_points_threshold"]),
+            "--noise_aug_strength", str(DEFAULT_SDG_PARAMS["noise_aug_strength"]),
+            "--seed", str(DEFAULT_SDG_PARAMS["seed"]),
+            "--trajectory", DEFAULT_SDG_PARAMS["trajectory"],
+            "--movement_distance", str(DEFAULT_SDG_PARAMS["movement_distance"]),
+            "--camera_rotation", DEFAULT_SDG_PARAMS["camera_rotation"],
+        ]
+
+        if DEFAULT_SDG_PARAMS["foreground_masking"]:
+            cmd.append("--foreground_masking")
+
+        # Run command
+        return await self._run_subprocess(job_id, cmd, log_callback, cwd=LYRA_ROOT)
+
+    async def _run_reconstruction(
+        self,
+        job_id: str,
+        config_path: Path,
+        log_callback: Optional[Callable[[str], None]]
+    ) -> bool:
+        """Run 3DGS reconstruction"""
+        cmd = [
+            "accelerate", "launch",
+            str(SAMPLE_SCRIPT),
+            "--config", str(config_path)
+        ]
+
+        return await self._run_subprocess(job_id, cmd, log_callback, cwd=LYRA_ROOT)
+
+    async def _run_subprocess(
+        self,
+        job_id: str,
+        cmd: list,
+        log_callback: Optional[Callable[[str], None]],
+        cwd: Optional[Path] = None
+    ) -> bool:
+        """Run subprocess and stream output"""
+        env = os.environ.copy()
+        env['PYTHONPATH'] = str(LYRA_ROOT)
+        env['CUDA_HOME'] = env.get('CONDA_PREFIX', '/usr/local/cuda')
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            cwd=str(cwd) if cwd else None,
+            env=env
+        )
+
+        # Stream output line by line
+        while True:
+            line = await process.stdout.readline()
+            if not line:
+                break
+
+            line_str = line.decode().rstrip()
+            await self._log(job_id, line_str, log_callback)
+
+            # Parse progress if possible
+            self._parse_progress(job_id, line_str)
+
+        await process.wait()
+        return process.returncode == 0
+
+    def _parse_progress(self, job_id: str, log_line: str):
+        """Parse progress from log lines"""
+        # Look for patterns like "Step 25/50" or "25/50"
+        match = re.search(r'(\d+)/(\d+)', log_line)
+        if match:
+            current = int(match.group(1))
+            total = int(match.group(2))
+            progress = int((current / total) * 100)
+
+            job = self.job_manager.get_job(job_id)
+            if job:
+                # Scale progress based on stage
+                if job.stage == PipelineStage.SDG:
+                    progress = int(progress * 0.5)  # 0-50%
+                elif job.stage == PipelineStage.RECONSTRUCTION:
+                    progress = 50 + int(progress * 0.5)  # 50-100%
+
+                self.job_manager.update_job_stage(job_id, job.stage, progress)
+
+    async def _log(
+        self,
+        job_id: str,
+        message: str,
+        callback: Optional[Callable[[str], None]] = None
+    ):
+        """Log message to job and callback"""
+        self.job_manager.add_log(job_id, message)
+        if callback:
+            callback(message)
+
+    async def _create_job_config(
+        self,
+        job_id: str,
+        latent_dir: Path,
+        output_dir: Path
+    ) -> Path:
+        """Create a dynamic YAML config for this job"""
+        # Read base config
+        base_config_path = CONFIGS_DIR / "demo" / "lyra_static_hq.yaml"
+
+        # Create job-specific config
+        config = {
+            "out_dir_inference": str(output_dir),
+            "dataset_name": f"job_{job_id}",
+            "static_view_indices_fixed": ['0'],  # Single trajectory
+            "target_index_subsample": 2,
+            "set_manual_time_idx": True,
+            "config_path": [
+                "configs/training/default.yaml",
+                "configs/training/3dgs_res_704_1280_views_121_multi_6_prune.yaml"
+            ],
+            "ckpt_path": "checkpoints/Lyra/lyra_static.pt",
+            "save_gaussians_orig": True,
+            "save_gt_input": True,
+            "save_gt_depth": True,
+            "save_video_input": False,
+            "save_rgb_decoding": False,
+            "out_fps": 24,
+        }
+
+        # Add dataset to registry dynamically
+        self._register_dataset(job_id, latent_dir)
+
+        # Save config
+        config_path = output_dir / "config.yaml"
+        with open(config_path, 'w') as f:
+            yaml.dump(config, f)
+
+        return config_path
+
+    def _register_dataset(self, job_id: str, latent_dir: Path):
+        """Dynamically register dataset in registry"""
+        # Import registry
+        import sys
+        sys.path.insert(0, str(LYRA_ROOT))
+        from src.models.data.registry import dataset_registry
+        from src.models.data.radym_wrapper import RadymWrapper
+
+        dataset_registry[f'job_{job_id}'] = {
+            'cls': RadymWrapper,
+            'kwargs': {
+                "root_path": str(latent_dir),
+                "is_static": True,
+                "is_multi_view": True,
+                "has_latents": True,
+                "is_generated_cosmos_latent": True,
+                "is_w2c": True,
+                "sampling_buckets": [['0']],
+                "start_view_idx": 0,
+            },
+            'scene_scale': 1.,
+            'max_gap': 121,
+            'min_gap': 45,
+        }
+
+    async def _scan_outputs(self, job_id: str, output_dir: Path):
+        """Scan output directory for generated files"""
+        # Look for videos
+        video_patterns = ["*.mp4", "*.avi"]
+        for pattern in video_patterns:
+            for video_file in output_dir.rglob(pattern):
+                rel_path = video_file.relative_to(output_dir)
+                self.job_manager.add_video_file(job_id, str(rel_path))
+
+        # Look for PLY file
+        for ply_file in output_dir.rglob("*.ply"):
+            rel_path = ply_file.relative_to(output_dir)
+            self.job_manager.set_ply_file(job_id, str(rel_path))
+            break  # Use first PLY found

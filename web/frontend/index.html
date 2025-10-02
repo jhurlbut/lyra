@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lyra - Gaussian Splatting from Images</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+            "@sparkjsdev/spark": "https://unpkg.com/@sparkjsdev/spark@latest/dist/spark.module.js"
+        }
+    }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <h1>🌟 Lyra Gaussian Splatting</h1>
+            <p>Transform images into interactive 3D Gaussian splats</p>
+        </header>
+
+        <!-- Main Content -->
+        <main>
+            <!-- Upload Section -->
+            <section id="upload-section" class="card">
+                <h2>Upload Image</h2>
+                <div class="upload-area" id="upload-area">
+                    <div class="upload-content">
+                        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <p class="upload-text">Drag and drop an image or click to browse</p>
+                        <p class="upload-hint">Supports PNG, JPG (max 10MB)</p>
+                    </div>
+                    <input type="file" id="file-input" accept=".png,.jpg,.jpeg" hidden>
+                </div>
+                <div id="preview-container" class="preview-container" style="display: none;">
+                    <img id="preview-image" src="" alt="Preview">
+                    <button id="remove-image" class="btn-secondary">Remove</button>
+                </div>
+                <button id="start-btn" class="btn-primary" style="display: none;">Start Processing</button>
+            </section>
+
+            <!-- Progress Section -->
+            <section id="progress-section" class="card" style="display: none;">
+                <h2>Pipeline Progress</h2>
+                <div class="progress-stages">
+                    <div class="stage" id="stage-upload">
+                        <div class="stage-icon">📤</div>
+                        <div class="stage-label">Upload</div>
+                    </div>
+                    <div class="stage" id="stage-sdg">
+                        <div class="stage-icon">🎬</div>
+                        <div class="stage-label">Latent Gen</div>
+                    </div>
+                    <div class="stage" id="stage-recon">
+                        <div class="stage-icon">🔮</div>
+                        <div class="stage-label">3DGS Recon</div>
+                    </div>
+                    <div class="stage" id="stage-done">
+                        <div class="stage-icon">✅</div>
+                        <div class="stage-label">Complete</div>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-text" id="progress-text">0%</div>
+            </section>
+
+            <!-- Console Output -->
+            <section id="console-section" class="card" style="display: none;">
+                <h2>Console Output</h2>
+                <div class="console-controls">
+                    <button id="toggle-console" class="btn-secondary">Hide Console</button>
+                    <button id="clear-console" class="btn-secondary">Clear</button>
+                </div>
+                <div id="console-container" class="console">
+                    <div id="console-output"></div>
+                </div>
+            </section>
+
+            <!-- Videos Section -->
+            <section id="videos-section" class="card" style="display: none;">
+                <h2>Generated Videos</h2>
+                <div id="videos-grid" class="videos-grid"></div>
+            </section>
+
+            <!-- 3D Viewer Section -->
+            <section id="viewer-section" class="card" style="display: none;">
+                <h2>3D Gaussian Splat Viewer</h2>
+                <div class="viewer-controls">
+                    <button id="reset-camera" class="btn-secondary">Reset Camera</button>
+                    <button id="download-ply" class="btn-primary">Download PLY</button>
+                </div>
+                <div id="viewer-container" class="viewer-container"></div>
+                <div class="viewer-instructions">
+                    <p><strong>Controls:</strong> Left-click to rotate • Right-click to pan • Scroll to zoom</p>
+                </div>
+            </section>
+
+            <!-- Job History -->
+            <section id="history-section" class="card">
+                <h2>Job History</h2>
+                <div id="jobs-list" class="jobs-list">
+                    <p class="no-jobs">No jobs yet. Upload an image to get started!</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer>
+            <p>Powered by <a href="https://github.com/NVIDIA/Lyra" target="_blank">NVIDIA Lyra</a> •
+               3D Viewer by <a href="https://sparkjs.dev" target="_blank">SparkJS</a></p>
+        </footer>
+    </div>
+
+    <!-- Error Modal -->
+    <div id="error-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Error</h3>
+            <p id="error-message"></p>
+            <button id="close-error" class="btn-primary">Close</button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/static/app.js" type="module"></script>
+</body>
+</html>

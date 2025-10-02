@@ -1,0 +1,460 @@
+import { initViewer, loadPLY, resetCamera } from './viewer.js';
+
+// State
+let currentJobId = null;
+let currentFile = null;
+let eventSource = null;
+let videoCheckInterval = null;
+
+// DOM Elements
+const uploadArea = document.getElementById('upload-area');
+const fileInput = document.getElementById('file-input');
+const previewContainer = document.getElementById('preview-container');
+const previewImage = document.getElementById('preview-image');
+const removeImageBtn = document.getElementById('remove-image');
+const startBtn = document.getElementById('start-btn');
+
+const progressSection = document.getElementById('progress-section');
+const progressFill = document.getElementById('progress-fill');
+const progressText = document.getElementById('progress-text');
+
+const consoleSection = document.getElementById('console-section');
+const consoleOutput = document.getElementById('console-output');
+const toggleConsoleBtn = document.getElementById('toggle-console');
+const clearConsoleBtn = document.getElementById('clear-console');
+const consoleContainer = document.getElementById('console-container');
+
+const videosSection = document.getElementById('videos-section');
+const videosGrid = document.getElementById('videos-grid');
+
+const viewerSection = document.getElementById('viewer-section');
+const resetCameraBtn = document.getElementById('reset-camera');
+const downloadPlyBtn = document.getElementById('download-ply');
+
+const errorModal = document.getElementById('error-modal');
+const errorMessage = document.getElementById('error-message');
+const closeErrorBtn = document.getElementById('close-error');
+
+const jobsList = document.getElementById('jobs-list');
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    initializeUpload();
+    initializeViewer();
+    loadJobHistory();
+});
+
+// Upload handling
+function initializeUpload() {
+    uploadArea.addEventListener('click', () => fileInput.click());
+
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('drag-over');
+    });
+
+    uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('drag-over');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('drag-over');
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFile(e.target.files[0]);
+        }
+    });
+
+    removeImageBtn.addEventListener('click', clearFile);
+    startBtn.addEventListener('click', startProcessing);
+
+    toggleConsoleBtn.addEventListener('click', toggleConsole);
+    clearConsoleBtn.addEventListener('click', () => consoleOutput.innerHTML = '');
+
+    resetCameraBtn.addEventListener('click', resetCamera);
+    downloadPlyBtn.addEventListener('click', downloadPLY);
+
+    closeErrorBtn.addEventListener('click', () => errorModal.style.display = 'none');
+}
+
+function handleFile(file) {
+    // Validate file type
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+        showError('Invalid file type. Please upload a PNG or JPG image.');
+        return;
+    }
+
+    // Validate file size (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+        showError('File too large. Maximum size is 10MB.');
+        return;
+    }
+
+    currentFile = file;
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        previewImage.src = e.target.result;
+        uploadArea.style.display = 'none';
+        previewContainer.style.display = 'block';
+        startBtn.style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearFile() {
+    currentFile = null;
+    previewImage.src = '';
+    uploadArea.style.display = 'flex';
+    previewContainer.style.display = 'none';
+    startBtn.style.display = 'none';
+    fileInput.value = '';
+}
+
+async function startProcessing() {
+    if (!currentFile) return;
+
+    try {
+        startBtn.disabled = true;
+        startBtn.textContent = 'Uploading...';
+
+        // Upload file
+        const formData = new FormData();
+        formData.append('file', currentFile);
+
+        const uploadResponse = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!uploadResponse.ok) {
+            throw new Error('Upload failed');
+        }
+
+        const uploadData = await uploadResponse.json();
+        currentJobId = uploadData.job_id;
+
+        // Start processing
+        const processResponse = await fetch(`/api/process/${currentJobId}`, {
+            method: 'POST'
+        });
+
+        if (!processResponse.ok) {
+            const error = await processResponse.json();
+            throw new Error(error.detail || 'Processing failed to start');
+        }
+
+        // Show progress UI
+        showProcessingUI();
+
+        // Start streaming logs
+        startLogStream();
+
+        // Start checking for videos
+        startVideoCheck();
+
+        updateStage('upload', true);
+
+    } catch (error) {
+        showError(error.message);
+        startBtn.disabled = false;
+        startBtn.textContent = 'Start Processing';
+    }
+}
+
+function showProcessingUI() {
+    progressSection.style.display = 'block';
+    consoleSection.style.display = 'block';
+
+    // Scroll to progress section
+    progressSection.scrollIntoView({ behavior: 'smooth' });
+}
+
+function startLogStream() {
+    if (eventSource) {
+        eventSource.close();
+    }
+
+    eventSource = new EventSource(`/api/jobs/${currentJobId}/stream`);
+
+    eventSource.onmessage = (event) => {
+        const logLine = event.data;
+        appendLog(logLine);
+
+        // Update stages based on log content
+        if (logLine.includes('Starting SDG')) {
+            updateStage('sdg', false);
+        } else if (logLine.includes('SDG') && logLine.includes('Complete')) {
+            updateStage('sdg', true);
+        } else if (logLine.includes('Starting 3DGS')) {
+            updateStage('recon', false);
+        } else if (logLine.includes('3DGS') && logLine.includes('Complete')) {
+            updateStage('recon', true);
+        } else if (logLine.includes('Pipeline Complete')) {
+            updateStage('done', true);
+            onPipelineComplete();
+        }
+    };
+
+    eventSource.onerror = () => {
+        eventSource.close();
+        checkJobStatus();
+    };
+}
+
+function appendLog(message) {
+    const line = document.createElement('div');
+    line.className = 'log-line';
+    line.textContent = message;
+    consoleOutput.appendChild(line);
+
+    // Auto-scroll to bottom
+    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+}
+
+function updateStage(stage, completed) {
+    const stages = {
+        'upload': 0,
+        'sdg': 25,
+        'recon': 50,
+        'done': 100
+    };
+
+    const stageElement = document.getElementById(`stage-${stage}`);
+    if (stageElement) {
+        if (completed) {
+            stageElement.classList.add('completed');
+        } else {
+            stageElement.classList.add('active');
+        }
+    }
+
+    const progress = stages[stage] || 0;
+    updateProgress(progress);
+}
+
+function updateProgress(percent) {
+    progressFill.style.width = `${percent}%`;
+    progressText.textContent = `${percent}%`;
+}
+
+function toggleConsole() {
+    if (consoleContainer.style.display === 'none') {
+        consoleContainer.style.display = 'block';
+        toggleConsoleBtn.textContent = 'Hide Console';
+    } else {
+        consoleContainer.style.display = 'none';
+        toggleConsoleBtn.textContent = 'Show Console';
+    }
+}
+
+function startVideoCheck() {
+    videoCheckInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/outputs/${currentJobId}/videos`);
+            if (response.ok) {
+                const data = await response.json();
+                displayVideos(data.videos);
+            }
+        } catch (error) {
+            console.error('Error checking videos:', error);
+        }
+    }, 5000); // Check every 5 seconds
+}
+
+function displayVideos(videos) {
+    if (videos.length === 0) return;
+
+    videosSection.style.display = 'block';
+    videosGrid.innerHTML = '';
+
+    videos.forEach(videoPath => {
+        const videoCard = document.createElement('div');
+        videoCard.className = 'video-card';
+
+        const video = document.createElement('video');
+        video.src = `/api/outputs/${currentJobId}/videos/${videoPath}`;
+        video.controls = true;
+        video.loop = true;
+
+        const label = document.createElement('div');
+        label.className = 'video-label';
+        label.textContent = videoPath.split('/').pop();
+
+        videoCard.appendChild(video);
+        videoCard.appendChild(label);
+        videosGrid.appendChild(videoCard);
+    });
+}
+
+async function onPipelineComplete() {
+    // Stop checking for videos
+    if (videoCheckInterval) {
+        clearInterval(videoCheckInterval);
+    }
+
+    // Close event stream
+    if (eventSource) {
+        eventSource.close();
+    }
+
+    // Load final videos
+    try {
+        const response = await fetch(`/api/outputs/${currentJobId}/videos`);
+        if (response.ok) {
+            const data = await response.json();
+            displayVideos(data.videos);
+        }
+    } catch (error) {
+        console.error('Error loading videos:', error);
+    }
+
+    // Load PLY file
+    await loadPLYFile();
+
+    // Update job history
+    await loadJobHistory();
+
+    // Reset upload UI
+    startBtn.disabled = false;
+    startBtn.textContent = 'Start Processing';
+    clearFile();
+}
+
+async function loadPLYFile() {
+    try {
+        const response = await fetch(`/api/outputs/${currentJobId}/ply`);
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+
+            await loadPLY(url);
+            viewerSection.style.display = 'block';
+
+            // Scroll to viewer
+            viewerSection.scrollIntoView({ behavior: 'smooth' });
+        }
+    } catch (error) {
+        console.error('Error loading PLY:', error);
+    }
+}
+
+async function downloadPLY() {
+    if (!currentJobId) return;
+
+    const link = document.createElement('a');
+    link.href = `/api/outputs/${currentJobId}/ply`;
+    link.download = `gaussians_${currentJobId}.ply`;
+    link.click();
+}
+
+async function checkJobStatus() {
+    try {
+        const response = await fetch(`/api/jobs/${currentJobId}`);
+        if (response.ok) {
+            const job = await response.json();
+
+            if (job.status === 'completed') {
+                onPipelineComplete();
+            } else if (job.status === 'failed') {
+                showError(job.error_message || 'Pipeline failed');
+            }
+        }
+    } catch (error) {
+        console.error('Error checking job status:', error);
+    }
+}
+
+async function loadJobHistory() {
+    try {
+        const response = await fetch('/api/jobs');
+        if (response.ok) {
+            const data = await response.json();
+            displayJobHistory(data.jobs);
+        }
+    } catch (error) {
+        console.error('Error loading job history:', error);
+    }
+}
+
+function displayJobHistory(jobs) {
+    if (jobs.length === 0) {
+        jobsList.innerHTML = '<p class="no-jobs">No jobs yet. Upload an image to get started!</p>';
+        return;
+    }
+
+    jobsList.innerHTML = '';
+
+    // Sort by created_at descending
+    jobs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+    jobs.forEach(job => {
+        const jobCard = document.createElement('div');
+        jobCard.className = `job-card job-${job.status}`;
+
+        const date = new Date(job.created_at).toLocaleString();
+
+        jobCard.innerHTML = `
+            <div class="job-header">
+                <span class="job-id">${job.job_id.substring(0, 8)}</span>
+                <span class="job-status">${job.status}</span>
+            </div>
+            <div class="job-details">
+                <div>Created: ${date}</div>
+                <div>Stage: ${job.stage}</div>
+                <div>Progress: ${job.progress}%</div>
+            </div>
+        `;
+
+        jobCard.addEventListener('click', () => loadJob(job.job_id));
+        jobsList.appendChild(jobCard);
+    });
+}
+
+async function loadJob(jobId) {
+    currentJobId = jobId;
+
+    try {
+        const response = await fetch(`/api/jobs/${jobId}`);
+        if (response.ok) {
+            const job = await response.json();
+
+            // Show progress section
+            showProcessingUI();
+
+            // Load logs
+            consoleOutput.innerHTML = '';
+            job.logs?.forEach(log => appendLog(log));
+
+            // Update progress
+            updateProgress(job.progress);
+
+            // Load videos
+            if (job.video_files?.length > 0) {
+                displayVideos(job.video_files);
+            }
+
+            // Load PLY if available
+            if (job.ply_file && job.status === 'completed') {
+                await loadPLYFile();
+            }
+        }
+    } catch (error) {
+        showError(`Error loading job: ${error.message}`);
+    }
+}
+
+function showError(message) {
+    errorMessage.textContent = message;
+    errorModal.style.display = 'flex';
+}
