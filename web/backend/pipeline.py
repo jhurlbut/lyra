@@ -350,22 +350,27 @@ dataset_registry['lyra_web_job'] = {{
     
     async def _scan_latent_outputs(self, job_id: str, latent_dir: Path):
         """Scan latent directory for generated videos"""
-        # Look for videos in latents/0/rgb directory (after restructuring)
-        rgb_dir = latent_dir / "0" / "rgb"
-        if rgb_dir.exists():
-            video_patterns = ["*.mp4", "*.avi"]
-            for pattern in video_patterns:
-                for video_file in rgb_dir.glob(pattern):
-                    # Store path relative to job output_dir for consistency
-                    job = self.job_manager.get_job(job_id)
-                    if job:
-                        rel_path = Path("latents") / "0" / "rgb" / video_file.name
-                        self.job_manager.add_video_file(job_id, str(rel_path))
-        else:
-            # Fallback to old structure in case restructuring hasn't happened
+        # Scan for all trajectory folders (multi_trajectory creates 0-5)
+        video_patterns = ["*.mp4", "*.avi"]
+        found_videos = False
+
+        # Look for trajectory folders (0, 1, 2, ...)
+        for trajectory_dir in sorted(latent_dir.glob("*")):
+            if trajectory_dir.is_dir() and trajectory_dir.name.isdigit():
+                rgb_dir = trajectory_dir / "rgb"
+                if rgb_dir.exists():
+                    for pattern in video_patterns:
+                        for video_file in rgb_dir.glob(pattern):
+                            job = self.job_manager.get_job(job_id)
+                            if job:
+                                rel_path = Path("latents") / trajectory_dir.name / "rgb" / video_file.name
+                                self.job_manager.add_video_file(job_id, str(rel_path))
+                                found_videos = True
+
+        # Fallback: check for direct rgb folder (single trajectory without restructuring)
+        if not found_videos:
             rgb_dir = latent_dir / "rgb"
             if rgb_dir.exists():
-                video_patterns = ["*.mp4", "*.avi"]
                 for pattern in video_patterns:
                     for video_file in rgb_dir.glob(pattern):
                         job = self.job_manager.get_job(job_id)
