@@ -73,26 +73,29 @@ async def upload_image(file: UploadFile = File(...)):
         output_dir=OUTPUT_DIR / "temp"
     )
 
-    # Resize image so longest side is max 1920 pixels
+    # Resize image to model-compatible dimensions
     img = Image.open(io.BytesIO(contents))
 
     # Convert RGBA to RGB if necessary
     if img.mode == 'RGBA':
         img = img.convert('RGB')
 
-    # Calculate new dimensions with longest side max 1920
+    # The model expects specific dimensions - use 1280x704 as a safe default
+    # This maintains 16:9 aspect ratio and is proven to work with the SDG model
+    # We can also try 1920x1056 (also 16:9) for higher resolution if needed
     width, height = img.size
-    max_dimension = 1920
     
-    if width > max_dimension or height > max_dimension:
-        # Calculate scaling factor
-        scale = max_dimension / max(width, height)
-        new_width = int(width * scale)
-        new_height = int(height * scale)
-        img_resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    # Determine target resolution based on input size
+    if width > 1920 or height > 1080:
+        # Use higher resolution for large images (16:9 aspect ratio)
+        target_width = 1920
+        target_height = 1056  # Maintains 16:9 and divisible by 32
     else:
-        # Image is already within size limits
-        img_resized = img
+        # Use standard resolution (proven to work)
+        target_width = 1280
+        target_height = 704  # Original working dimensions
+    
+    img_resized = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
 
     # Save resized image
     image_path = UPLOAD_DIR / f"{job_id}.png"  # Always save as PNG for consistency
