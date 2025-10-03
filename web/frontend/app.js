@@ -319,12 +319,24 @@ function displayVideos(videos) {
         const label = document.createElement('div');
         label.className = 'video-label';
         
-        // Create user-friendly labels based on filename
+        // Create user-friendly labels based on filename and path
         const filename = videoPath.split('/').pop();
         let friendlyName = filename;
         
-        // Map technical filenames to user-friendly descriptions
-        if (filename.includes('rgb_wave')) {
+        // Check if this is a latent video (from SDG phase)
+        if (videoPath.includes('latents/rgb/')) {
+            friendlyName = '🎥 Generated Camera Trajectory (Latent)';
+            // Add job ID or trajectory type if present in filename
+            if (filename.includes('left')) {
+                friendlyName = '🎥 Left Camera Trajectory (Latent)';
+            } else if (filename.includes('right')) {
+                friendlyName = '🎥 Right Camera Trajectory (Latent)';
+            } else if (filename.includes('up')) {
+                friendlyName = '🎥 Upward Camera Trajectory (Latent)';
+            }
+        } 
+        // Map technical filenames to user-friendly descriptions for reconstruction videos
+        else if (filename.includes('rgb_wave')) {
             friendlyName = '🌊 Gaussian Splat Wave Animation';
         } else if (filename.includes('rgb_0_view_idx')) {
             friendlyName = '📹 Multi-View Rendering';

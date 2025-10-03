@@ -216,7 +216,13 @@ async def get_video(job_id: str, video_path: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    video_file = job.output_dir / "reconstruction" / video_path
+    # Check if video is in latents directory first
+    if video_path.startswith("latents/"):
+        video_file = job.output_dir / video_path
+    else:
+        # Otherwise check reconstruction directory
+        video_file = job.output_dir / "reconstruction" / video_path
+    
     if not video_file.exists():
         raise HTTPException(status_code=404, detail="Video not found")
 

@@ -54,6 +54,9 @@ class PipelineRunner:
                 raise Exception("SDG latent generation failed")
 
             await self._log(job_id, "=== SDG Latent Generation Complete ===", log_callback)
+            
+            # Scan for latent videos after SDG completes
+            await self._scan_latent_outputs(job_id, latent_output_dir)
 
             # Step 2: 3DGS Reconstruction
             self.job_manager.update_job_stage(job_id, PipelineStage.RECONSTRUCTION, 50)
@@ -265,6 +268,20 @@ class PipelineRunner:
             'max_gap': 121,
             'min_gap': 45,
         }
+
+    async def _scan_latent_outputs(self, job_id: str, latent_dir: Path):
+        """Scan latent directory for generated videos"""
+        # Look for videos in latents/rgb directory
+        rgb_dir = latent_dir / "rgb"
+        if rgb_dir.exists():
+            video_patterns = ["*.mp4", "*.avi"]
+            for pattern in video_patterns:
+                for video_file in rgb_dir.glob(pattern):
+                    # Store path relative to job output_dir for consistency
+                    job = self.job_manager.get_job(job_id)
+                    if job:
+                        rel_path = Path("latents") / "rgb" / video_file.name
+                        self.job_manager.add_video_file(job_id, str(rel_path))
 
     async def _scan_outputs(self, job_id: str, output_dir: Path):
         """Scan output directory for generated files"""
