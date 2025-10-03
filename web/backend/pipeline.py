@@ -12,11 +12,13 @@ from config import (
     DEFAULT_SDG_PARAMS, CONFIGS_DIR
 )
 from job_manager import JobManager, JobStatus, PipelineStage
+from logger import logger as lyra_logger
 
 
 class PipelineRunner:
     def __init__(self, job_manager: JobManager):
         self.job_manager = job_manager
+        self.logger = lyra_logger
 
     async def run_pipeline(
         self,
@@ -125,7 +127,7 @@ class PipelineRunner:
         if DEFAULT_SDG_PARAMS["foreground_masking"]:
             cmd.append("--foreground_masking")
 
-        # Run command
+        # Execute directly on AIP job
         return await self._run_subprocess(job_id, cmd, log_callback, cwd=LYRA_ROOT)
 
     async def _run_reconstruction(
@@ -141,6 +143,7 @@ class PipelineRunner:
             "--config", str(config_path)
         ]
 
+        # Execute directly on AIP job
         return await self._run_subprocess(job_id, cmd, log_callback, cwd=LYRA_ROOT)
 
     async def _run_subprocess(
@@ -150,36 +153,57 @@ class PipelineRunner:
         log_callback: Optional[Callable[[str], None]],
         cwd: Optional[Path] = None
     ) -> bool:
-        """Run subprocess and stream output with conda environment"""
+        """Execute subprocess directly with conda environment"""
+        # Set up environment
         env = os.environ.copy()
-        env['PYTHONPATH'] = str(LYRA_ROOT)
+        env['CUDA_HOME'] = env.get('CONDA_PREFIX', '/opt/conda/envs/lyra')
+        env['PYTHONPATH'] = str(cwd) if cwd else str(LYRA_ROOT)
 
-        # Convert command list to string for shell execution with conda
+        # Build shell command with conda activation
         cmd_str = ' '.join(str(c) for c in cmd)
-        shell_cmd = f"source /opt/conda/bin/activate lyra && cd {LYRA_ROOT} && CUDA_HOME=$CONDA_PREFIX {cmd_str}"
+        shell_cmd = f"source /opt/conda/bin/activate lyra && cd {cwd or LYRA_ROOT} && {cmd_str}"
+
+        await self._log(job_id, f"Executing: {shell_cmd}", log_callback)
 
         process = await asyncio.create_subprocess_shell(
             shell_cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
-            env=env,
-            executable='/bin/bash'
+            env=env
         )
 
-        # Stream output line by line
-        while True:
-            line = await process.stdout.readline()
-            if not line:
-                break
+        return await self._stream_output(job_id, process, log_callback)
 
-            line_str = line.decode().rstrip()
-            await self._log(job_id, line_str, log_callback)
+    async def _stream_output(
+        self,
+        job_id: str,
+        process: asyncio.subprocess.Process,
+        log_callback: Optional[Callable[[str], None]]
+    ) -> bool:
+        """Stream subprocess output to logs"""
+        try:
+            while True:
+                line = await process.stdout.readline()
+                if not line:
+                    break
 
-            # Parse progress if possible
-            self._parse_progress(job_id, line_str)
+                line_str = line.decode('utf-8').rstrip()
+                await self._log(job_id, line_str, log_callback)
+                self._parse_progress(job_id, line_str)
 
-        await process.wait()
-        return process.returncode == 0
+            # Wait for process to complete
+            returncode = await process.wait()
+
+            if returncode == 0:
+                await self._log(job_id, "Command completed successfully", log_callback)
+                return True
+            else:
+                await self._log(job_id, f"Command failed with exit code {returncode}", log_callback)
+                return False
+
+        except Exception as e:
+            await self._log(job_id, f"Error executing command: {str(e)}", log_callback)
+            return False
 
     def _parse_progress(self, job_id: str, log_line: str):
         """Parse progress from log lines"""
@@ -206,10 +230,10 @@ class PipelineRunner:
         message: str,
         callback: Optional[Callable[[str], None]] = None
     ):
-        """Log message to job and callback"""
+        """Log message to job and callback using centralized logger"""
         self.job_manager.add_log(job_id, message)
-        if callback:
-            callback(message)
+        # Also log to file using centralized logger
+        self.logger.log_job(job_id, message, callback=callback)
 
     async def _create_job_config(
         self,

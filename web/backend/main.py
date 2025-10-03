@@ -5,6 +5,7 @@ from typing import List
 import shutil
 from PIL import Image
 import io
+import math
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse, StreamingResponse
@@ -73,29 +74,42 @@ async def upload_image(file: UploadFile = File(...)):
         output_dir=OUTPUT_DIR / "temp"
     )
 
-    # Resize image to model-compatible dimensions
+    # Smart resize to maintain aspect ratio while ensuring correct tokenization
     img = Image.open(io.BytesIO(contents))
 
     # Convert RGBA to RGB if necessary
     if img.mode == 'RGBA':
         img = img.convert('RGB')
 
-    # The model expects specific dimensions - use 1280x704 as a safe default
-    # This maintains 16:9 aspect ratio and is proven to work with the SDG model
-    # We can also try 1920x1056 (also 16:9) for higher resolution if needed
-    width, height = img.size
+    # Target pixel count based on working dimensions (1344x768 = 1,032,192)
+    # This ensures the model generates the correct number of tokens
+    TARGET_PIXELS = 1_032_192
     
-    # Determine target resolution based on input size
-    if width > 1920 or height > 1080:
-        # Use higher resolution for large images (16:9 aspect ratio)
-        target_width = 1920
-        target_height = 1056  # Maintains 16:9 and divisible by 32
-    else:
-        # Use standard resolution (proven to work)
-        target_width = 1280
-        target_height = 704  # Original working dimensions
+    # Get original aspect ratio
+    orig_width, orig_height = img.size
+    aspect_ratio = orig_width / orig_height
     
-    img_resized = img.resize((target_width, target_height), Image.Resampling.LANCZOS)
+    # Calculate new dimensions maintaining aspect ratio
+    # height = sqrt(area / aspect_ratio), width = height * aspect_ratio
+    new_height = math.sqrt(TARGET_PIXELS / aspect_ratio)
+    new_width = new_height * aspect_ratio
+    
+    # Round to nearest 16 pixels for clean tokenization
+    # The model uses 16x16 spatial compression
+    new_height = round(new_height / 16) * 16
+    new_width = round(new_width / 16) * 16
+    
+    # Ensure minimum dimensions (at least 256 pixels)
+    new_height = max(new_height, 256)
+    new_width = max(new_width, 256)
+    
+    # Convert to integers
+    new_height = int(new_height)
+    new_width = int(new_width)
+    
+    print(f"Resizing image from {orig_width}x{orig_height} to {new_width}x{new_height} (aspect ratio: {aspect_ratio:.2f})")
+    
+    img_resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
     # Save resized image
     image_path = UPLOAD_DIR / f"{job_id}.png"  # Always save as PNG for consistency
