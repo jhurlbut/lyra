@@ -353,7 +353,7 @@ export async function loadPLY(url) {
                     console.log('Bounding box:', { center, size });
                     
                     // Fix coordinate system orientation (OpenCV/COLMAP to OpenGL/Three.js)
-                    mesh.quaternion.set(1, 0, 0, 0);
+                    mesh.rotation.x = Math.PI;  // Rotate 180 degrees around X-axis
                     
                     // Calculate appropriate scale - make it 5x bigger than before
                     const maxDim = Math.max(size.x, size.y, size.z);

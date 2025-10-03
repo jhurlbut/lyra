@@ -82,25 +82,6 @@ function initializeUpload() {
     resetCameraBtn.addEventListener('click', resetCamera);
     downloadPlyBtn.addEventListener('click', downloadPLY);
 
-    // Transform controls event handlers
-    document.getElementById('translate-mode').addEventListener('click', () => {
-        if (window.transformControls) {
-            window.transformControls.setMode('translate');
-        }
-    });
-
-    document.getElementById('rotate-mode').addEventListener('click', () => {
-        if (window.transformControls) {
-            window.transformControls.setMode('rotate');
-        }
-    });
-
-    document.getElementById('scale-mode').addEventListener('click', () => {
-        if (window.transformControls) {
-            window.transformControls.setMode('scale');
-        }
-    });
-
     // Reference point event handlers
     document.getElementById('set-origin-point').addEventListener('click', () => {
         if (window.setReferencePointMode) {
