@@ -2,6 +2,7 @@
 import asyncio
 import os
 import re
+import shutil
 from pathlib import Path
 from typing import AsyncGenerator, Callable, Optional
 import yaml
@@ -54,6 +55,9 @@ class PipelineRunner:
                 raise Exception("SDG latent generation failed")
 
             await self._log(job_id, "=== SDG Latent Generation Complete ===", log_callback)
+            
+            # Restructure the latent output to match expected format
+            await self._restructure_latent_output(job_id, latent_output_dir, log_callback)
             
             # Scan for latent videos after SDG completes
             await self._scan_latent_outputs(job_id, latent_output_dir)
@@ -269,10 +273,40 @@ class PipelineRunner:
             'min_gap': 45,
         }
 
+    async def _restructure_latent_output(self, job_id: str, latent_dir: Path, log_callback: Optional[Callable[[str], None]]):
+        """Restructure SDG output to match expected directory structure"""
+        await self._log(job_id, "Restructuring latent output for Lyra compatibility...", log_callback)
+        
+        # Check if files are in the root of latent_dir (wrong structure)
+        subdirs = ['latent', 'pose', 'rgb', 'intrinsics']
+        needs_restructure = any((latent_dir / subdir).exists() for subdir in subdirs)
+        
+        if needs_restructure:
+            # Create trajectory folder "0"
+            trajectory_dir = latent_dir / "0"
+            trajectory_dir.mkdir(exist_ok=True)
+            
+            # Move each subdirectory into the trajectory folder
+            for subdir in subdirs:
+                src = latent_dir / subdir
+                if src.exists():
+                    dst = trajectory_dir / subdir
+                    if dst.exists():
+                        # Remove destination if it exists
+                        shutil.rmtree(dst)
+                    shutil.move(str(src), str(dst))
+                    await self._log(job_id, f"  Moved {subdir}/ to 0/{subdir}/", log_callback)
+            
+            await self._log(job_id, "Restructuring complete - files now in 0/ trajectory folder", log_callback)
+        else:
+            # Check if already in correct structure
+            if (latent_dir / "0").exists():
+                await self._log(job_id, "Latent output already in correct structure", log_callback)
+    
     async def _scan_latent_outputs(self, job_id: str, latent_dir: Path):
         """Scan latent directory for generated videos"""
-        # Look for videos in latents/rgb directory
-        rgb_dir = latent_dir / "rgb"
+        # Look for videos in latents/0/rgb directory (after restructuring)
+        rgb_dir = latent_dir / "0" / "rgb"
         if rgb_dir.exists():
             video_patterns = ["*.mp4", "*.avi"]
             for pattern in video_patterns:
@@ -280,8 +314,19 @@ class PipelineRunner:
                     # Store path relative to job output_dir for consistency
                     job = self.job_manager.get_job(job_id)
                     if job:
-                        rel_path = Path("latents") / "rgb" / video_file.name
+                        rel_path = Path("latents") / "0" / "rgb" / video_file.name
                         self.job_manager.add_video_file(job_id, str(rel_path))
+        else:
+            # Fallback to old structure in case restructuring hasn't happened
+            rgb_dir = latent_dir / "rgb"
+            if rgb_dir.exists():
+                video_patterns = ["*.mp4", "*.avi"]
+                for pattern in video_patterns:
+                    for video_file in rgb_dir.glob(pattern):
+                        job = self.job_manager.get_job(job_id)
+                        if job:
+                            rel_path = Path("latents") / "rgb" / video_file.name
+                            self.job_manager.add_video_file(job_id, str(rel_path))
 
     async def _scan_outputs(self, job_id: str, output_dir: Path):
         """Scan output directory for generated files"""

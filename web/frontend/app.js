@@ -324,7 +324,7 @@ function displayVideos(videos) {
         let friendlyName = filename;
         
         // Check if this is a latent video (from SDG phase)
-        if (videoPath.includes('latents/rgb/')) {
+        if (videoPath.includes('latents/0/rgb/') || videoPath.includes('latents/rgb/')) {
             friendlyName = '🎥 Generated Camera Trajectory (Latent)';
             // Add job ID or trajectory type if present in filename
             if (filename.includes('left')) {
