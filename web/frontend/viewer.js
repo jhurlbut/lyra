@@ -81,6 +81,9 @@ export function initViewer() {
     
     // Initialize transform controls after everything is set up
     initTransformControls();
+    
+    // Initialize reference point system
+    initReferencePointSystem();
 }
 
 function initTransformControls() {
@@ -125,6 +128,164 @@ function initTransformControls() {
         transformControls = null;
         window.transformControls = null;
     }
+}
+
+function initReferencePointSystem() {
+    try {
+        // Initialize raycaster
+        raycaster = new THREE.Raycaster();
+        
+        // Add mouse event listeners for reference point selection
+        const container = document.getElementById('viewer-container');
+        if (container && renderer && renderer.domElement) {
+            renderer.domElement.addEventListener('click', onMouseClick);
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+        }
+        
+        // Make reference point functions available globally
+        window.setReferencePointMode = setReferencePointMode;
+        window.applyReferencePoint = applyReferencePoint;
+        window.clearReferencePoint = clearReferencePoint;
+        
+        console.log('Reference point system initialized');
+    } catch (error) {
+        console.error('Error initializing reference point system:', error);
+    }
+}
+
+function onMouseMove(event) {
+    if (!referencePointMode) return;
+    
+    // Update mouse coordinates for raycasting
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function onMouseClick(event) {
+    if (!referencePointMode || !splatMesh || !raycaster) return;
+    
+    // Update mouse coordinates
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
+    console.log('Attempting raycasting at mouse position:', mouse.x, mouse.y);
+    
+    // Perform raycasting - try multiple approaches
+    raycaster.setFromCamera(mouse, camera);
+    
+    // First try direct intersection with splatMesh
+    let intersects = raycaster.intersectObject(splatMesh, true);
+    console.log('Direct splat intersects:', intersects.length);
+    
+    // If no direct intersection, try intersecting with all scene objects
+    if (intersects.length === 0) {
+        intersects = raycaster.intersectObjects(scene.children, true);
+        console.log('Scene intersects:', intersects.length);
+    }
+    
+    // If still no intersection, create a point based on camera direction and distance
+    if (intersects.length === 0) {
+        console.log('No intersections found, creating point based on camera direction');
+        
+        // Calculate a point in front of the camera at a reasonable distance
+        const direction = new THREE.Vector3();
+        raycaster.ray.direction.clone().normalize();
+        
+        // Use the camera position and look towards the splat mesh
+        const targetDistance = 10; // Approximate distance to the splat
+        const point = new THREE.Vector3();
+        point.copy(camera.position);
+        camera.getWorldDirection(direction);
+        point.add(direction.multiplyScalar(targetDistance));
+        
+        setReferencePoint(point);
+        console.log('Reference point set at calculated position:', point);
+        return;
+    }
+    
+    // Use the first intersection found
+    const intersection = intersects[0];
+    setReferencePoint(intersection.point);
+    console.log('Reference point set at intersection:', intersection.point);
+}
+
+function setReferencePointMode(enabled) {
+    referencePointMode = enabled;
+    
+    // Update cursor style to indicate mode
+    if (renderer && renderer.domElement) {
+        renderer.domElement.style.cursor = enabled ? 'crosshair' : 'default';
+    }
+    
+    // Update UI to show current mode
+    console.log('Reference point mode:', enabled ? 'ENABLED' : 'DISABLED');
+}
+
+function setReferencePoint(point) {
+    referencePoint = point.clone();
+    
+    // Remove existing indicator
+    if (referencePointIndicator) {
+        scene.remove(referencePointIndicator);
+    }
+    
+    // Create visual indicator for reference point
+    const geometry = new THREE.SphereGeometry(0.2, 16, 16);
+    const material = new THREE.MeshBasicMaterial({ 
+        color: 0xff0000, 
+        transparent: true, 
+        opacity: 0.8 
+    });
+    referencePointIndicator = new THREE.Mesh(geometry, material);
+    referencePointIndicator.position.copy(referencePoint);
+    scene.add(referencePointIndicator);
+    
+    // Exit reference point mode after selection
+    setReferencePointMode(false);
+    
+    console.log('Reference point indicator created at:', referencePoint);
+}
+
+function applyReferencePoint() {
+    if (!referencePoint || !splatMesh) {
+        console.log('No reference point set or no mesh loaded');
+        return;
+    }
+    
+    // Calculate offset needed to move reference point to origin
+    const offset = referencePoint.clone().negate();
+    
+    // Apply offset to mesh position
+    splatMesh.position.add(offset);
+    
+    // Move the reference point indicator to origin
+    if (referencePointIndicator) {
+        referencePointIndicator.position.set(0, 0, 0);
+    }
+    
+    // Update controls target to origin
+    controls.target.set(0, 0, 0);
+    controls.update();
+    
+    console.log('Applied reference point offset:', offset);
+    console.log('Mesh repositioned so reference point is at origin');
+}
+
+function clearReferencePoint() {
+    referencePoint = null;
+    
+    // Remove visual indicator
+    if (referencePointIndicator) {
+        scene.remove(referencePointIndicator);
+        referencePointIndicator = null;
+    }
+    
+    // Exit reference point mode
+    setReferencePointMode(false);
+    
+    console.log('Reference point cleared');
 }
 
 function animate() {

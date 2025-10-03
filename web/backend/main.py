@@ -15,7 +15,8 @@ from config import (
     MAX_UPLOAD_SIZE, HOST, PORT, WEB_DIR
 )
 from job_manager import job_manager, JobStatus
-from pipeline import PipelineRunner
+# from pipeline import PipelineRunner  # REAL VERSION
+from pipeline_test import PipelineRunner  # TEST VERSION - using pre-generated data
 
 
 app = FastAPI(title="Lyra Gaussian Splatting API")
