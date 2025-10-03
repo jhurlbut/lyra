@@ -215,13 +215,13 @@ class PipelineRunner:
         output_dir: Path
     ) -> Path:
         """Create a dynamic YAML config for this job"""
-        # Read base config
-        base_config_path = CONFIGS_DIR / "demo" / "lyra_static_hq.yaml"
-
-        # Create job-specific config
+        # First, update the registry to add our web job dataset with the correct path
+        await self._update_registry_for_job(latent_dir)
+        
+        # Create job-specific config using the web job dataset
         config = {
             "out_dir_inference": str(output_dir),
-            "dataset_name": f"job_{job_id}",
+            "dataset_name": "lyra_web_job",
             "static_view_indices_fixed": ['0'],  # Single trajectory
             "target_index_subsample": 2,
             "set_manual_time_idx": True,
@@ -238,9 +238,6 @@ class PipelineRunner:
             "out_fps": 24,
         }
 
-        # Add dataset to registry dynamically
-        self._register_dataset(job_id, latent_dir)
-
         # Save config
         config_path = output_dir / "config.yaml"
         with open(config_path, 'w') as f:
@@ -248,30 +245,54 @@ class PipelineRunner:
 
         return config_path
 
-    def _register_dataset(self, job_id: str, latent_dir: Path):
-        """Dynamically register dataset in registry"""
-        # Import registry
-        import sys
-        sys.path.insert(0, str(LYRA_ROOT))
-        from src.models.data.registry import dataset_registry
-        from src.models.data.radym_wrapper import RadymWrapper
-
-        dataset_registry[f'job_{job_id}'] = {
-            'cls': RadymWrapper,
-            'kwargs': {
-                "root_path": str(latent_dir),
-                "is_static": True,
-                "is_multi_view": True,
-                "has_latents": True,
-                "is_generated_cosmos_latent": True,
-                "is_w2c": True,
-                "sampling_buckets": [['0']],
-                "start_view_idx": 0,
-            },
-            'scene_scale': 1.,
-            'max_gap': 121,
-            'min_gap': 45,
-        }
+    async def _update_registry_for_job(self, latent_dir: Path):
+        """Update the registry.py file with web job dataset pointing to correct path"""
+        registry_file = LYRA_ROOT / "src" / "models" / "data" / "registry.py"
+        
+        # Read the registry file
+        with open(registry_file, 'r') as f:
+            lines = f.readlines()
+        
+        # Check if lyra_web_job already exists
+        has_web_job = any("'lyra_web_job'" in line or '"lyra_web_job"' in line for line in lines)
+        
+        if has_web_job:
+            # Update the existing entry's root_path
+            in_web_job = False
+            for i, line in enumerate(lines):
+                if "'lyra_web_job'" in line or '"lyra_web_job"' in line:
+                    in_web_job = True
+                elif in_web_job and '"root_path":' in line:
+                    # Update this line with the new path
+                    lines[i] = f'        "root_path": "{str(latent_dir)}",\n'
+                    in_web_job = False
+                    break
+        else:
+            # Add new entry at the end
+            web_job_entry = f"""
+# Web pipeline job (dynamically generated)
+dataset_registry['lyra_web_job'] = {{
+    'cls': RadymWrapper,
+    'kwargs': {{
+        "root_path": "{str(latent_dir)}",
+        "is_static": True,
+        "is_multi_view": True,
+        "has_latents": True,
+        "is_generated_cosmos_latent": True,
+        "is_w2c": True,
+        "sampling_buckets": [['0']],
+        "start_view_idx": 0,
+    }},
+    'scene_scale': 1.,
+    'max_gap': 121,
+    'min_gap': 45,
+}}
+"""
+            lines.append(web_job_entry)
+        
+        # Write back the updated registry
+        with open(registry_file, 'w') as f:
+            f.writelines(lines)
 
     async def _restructure_latent_output(self, job_id: str, latent_dir: Path, log_callback: Optional[Callable[[str], None]]):
         """Restructure SDG output to match expected directory structure"""
