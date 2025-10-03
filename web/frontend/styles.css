@@ -378,6 +378,21 @@ header p {
     color: var(--text-secondary);
 }
 
+.cancel-job-btn {
+    margin-top: 10px;
+    padding: 5px 10px;
+    background: var(--error-color);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+}
+
+.cancel-job-btn:hover {
+    opacity: 0.9;
+}
+
 /* Modal */
 .modal {
     display: none;

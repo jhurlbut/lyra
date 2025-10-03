@@ -246,6 +246,31 @@ async def get_ply(job_id: str):
     return FileResponse(ply_file, media_type="application/octet-stream")
 
 
+@app.post("/api/jobs/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    """Cancel a running job"""
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.status != JobStatus.RUNNING:
+        raise HTTPException(status_code=400, detail="Job is not running")
+
+    # Mark job as failed
+    job_manager.update_job_status(job_id, JobStatus.FAILED, "Job cancelled by user")
+    await job_manager.clear_active_job()
+
+    # Try to kill any running processes for this job
+    # This is best-effort - process might already be done
+    import subprocess
+    try:
+        subprocess.run(["pkill", "-f", job_id], check=False)
+    except:
+        pass
+
+    return {"message": "Job cancelled successfully"}
+
+
 @app.delete("/api/jobs/{job_id}")
 async def delete_job(job_id: str):
     """Delete a job and its files"""

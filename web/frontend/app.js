@@ -475,6 +475,9 @@ function displayJobHistory(jobs) {
 
         const date = new Date(job.created_at).toLocaleString();
 
+        const cancelButton = job.status === 'running' ?
+            `<button class="cancel-job-btn" data-job-id="${job.job_id}">Cancel</button>` : '';
+
         jobCard.innerHTML = `
             <div class="job-header">
                 <span class="job-id">${job.job_id.substring(0, 8)}</span>
@@ -485,7 +488,28 @@ function displayJobHistory(jobs) {
                 <div>Stage: ${job.stage}</div>
                 <div>Progress: ${job.progress}%</div>
             </div>
+            ${cancelButton}
         `;
+
+        // Add cancel button handler
+        const cancelBtn = jobCard.querySelector('.cancel-job-btn');
+        if (cancelBtn) {
+            cancelBtn.addEventListener('click', async (e) => {
+                e.stopPropagation(); // Prevent job card click
+                if (confirm('Cancel this job?')) {
+                    try {
+                        const response = await fetch(`/api/jobs/${job.job_id}/cancel`, {
+                            method: 'POST'
+                        });
+                        if (response.ok) {
+                            refreshJobHistory();
+                        }
+                    } catch (error) {
+                        console.error('Error cancelling job:', error);
+                    }
+                }
+            });
+        }
 
         jobCard.addEventListener('click', () => loadJob(job.job_id));
         jobsList.appendChild(jobCard);
