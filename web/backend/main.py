@@ -3,6 +3,8 @@ import asyncio
 from pathlib import Path
 from typing import List
 import shutil
+from PIL import Image
+import io
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse, StreamingResponse
@@ -71,10 +73,30 @@ async def upload_image(file: UploadFile = File(...)):
         output_dir=OUTPUT_DIR / "temp"
     )
 
-    # Save uploaded file
-    image_path = UPLOAD_DIR / f"{job_id}{file_ext}"
-    with open(image_path, "wb") as f:
-        f.write(contents)
+    # Resize image so longest side is max 1920 pixels
+    img = Image.open(io.BytesIO(contents))
+
+    # Convert RGBA to RGB if necessary
+    if img.mode == 'RGBA':
+        img = img.convert('RGB')
+
+    # Calculate new dimensions with longest side max 1920
+    width, height = img.size
+    max_dimension = 1920
+    
+    if width > max_dimension or height > max_dimension:
+        # Calculate scaling factor
+        scale = max_dimension / max(width, height)
+        new_width = int(width * scale)
+        new_height = int(height * scale)
+        img_resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    else:
+        # Image is already within size limits
+        img_resized = img
+
+    # Save resized image
+    image_path = UPLOAD_DIR / f"{job_id}.png"  # Always save as PNG for consistency
+    img_resized.save(image_path, format='PNG')
 
     # Update job with correct paths
     output_dir = OUTPUT_DIR / job_id
