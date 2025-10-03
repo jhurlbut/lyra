@@ -150,17 +150,20 @@ class PipelineRunner:
         log_callback: Optional[Callable[[str], None]],
         cwd: Optional[Path] = None
     ) -> bool:
-        """Run subprocess and stream output"""
+        """Run subprocess and stream output with conda environment"""
         env = os.environ.copy()
         env['PYTHONPATH'] = str(LYRA_ROOT)
-        env['CUDA_HOME'] = env.get('CONDA_PREFIX', '/usr/local/cuda')
 
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
+        # Convert command list to string for shell execution with conda
+        cmd_str = ' '.join(str(c) for c in cmd)
+        shell_cmd = f"source /opt/conda/bin/activate lyra && cd {LYRA_ROOT} && CUDA_HOME=$CONDA_PREFIX {cmd_str}"
+
+        process = await asyncio.create_subprocess_shell(
+            shell_cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
-            cwd=str(cwd) if cwd else None,
-            env=env
+            env=env,
+            executable='/bin/bash'
         )
 
         # Stream output line by line
