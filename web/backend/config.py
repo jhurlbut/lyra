@@ -19,6 +19,12 @@ SAMPLE_SCRIPT = LYRA_ROOT / "sample.py"
 
 # Pipeline settings
 DEFAULT_SDG_PARAMS = {
+    "foreground_masking": True,
+    "multi_trajectory": True,
+}
+
+# Extended parameters for fine-tuning (not used by default)
+EXTENDED_SDG_PARAMS = {
     "num_steps": 50,
     "guidance": 7.5,
     "filter_points_threshold": 0.03,
