@@ -105,7 +105,7 @@ class PipelineRunner:
         log_callback: Optional[Callable[[str], None]]
     ) -> bool:
         """Run SDG latent generation"""
-        # Build command
+        # Build command with minimal default parameters
         cmd = [
             "torchrun",
             "--nproc_per_node=1",
@@ -114,18 +114,14 @@ class PipelineRunner:
             "--num_gpus", "1",
             "--input_image_path", str(image_path),
             "--video_save_folder", str(output_dir),
-            "--num_steps", str(DEFAULT_SDG_PARAMS["num_steps"]),
-            "--guidance", str(DEFAULT_SDG_PARAMS["guidance"]),
-            "--filter_points_threshold", str(DEFAULT_SDG_PARAMS["filter_points_threshold"]),
-            "--noise_aug_strength", str(DEFAULT_SDG_PARAMS["noise_aug_strength"]),
-            "--seed", str(DEFAULT_SDG_PARAMS["seed"]),
-            "--trajectory", DEFAULT_SDG_PARAMS["trajectory"],
-            "--movement_distance", str(DEFAULT_SDG_PARAMS["movement_distance"]),
-            "--camera_rotation", DEFAULT_SDG_PARAMS["camera_rotation"],
         ]
 
-        if DEFAULT_SDG_PARAMS["foreground_masking"]:
+        # Add optional flags from DEFAULT_SDG_PARAMS
+        if DEFAULT_SDG_PARAMS.get("foreground_masking"):
             cmd.append("--foreground_masking")
+
+        if DEFAULT_SDG_PARAMS.get("multi_trajectory"):
+            cmd.append("--multi_trajectory")
 
         # Execute directly on AIP job
         return await self._run_subprocess(job_id, cmd, log_callback, cwd=LYRA_ROOT)
@@ -169,7 +165,8 @@ class PipelineRunner:
             shell_cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
-            env=env
+            env=env,
+            executable='/bin/bash'
         )
 
         return await self._stream_output(job_id, process, log_callback)
