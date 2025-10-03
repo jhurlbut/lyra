@@ -3,9 +3,6 @@ import asyncio
 from pathlib import Path
 from typing import List
 import shutil
-from PIL import Image
-import io
-import math
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse, StreamingResponse
@@ -74,46 +71,10 @@ async def upload_image(file: UploadFile = File(...)):
         output_dir=OUTPUT_DIR / "temp"
     )
 
-    # Smart resize to maintain aspect ratio while ensuring correct tokenization
-    img = Image.open(io.BytesIO(contents))
-
-    # Convert RGBA to RGB if necessary
-    if img.mode == 'RGBA':
-        img = img.convert('RGB')
-
-    # Target pixel count based on working dimensions (1344x768 = 1,032,192)
-    # This ensures the model generates the correct number of tokens
-    TARGET_PIXELS = 1_032_192
-    
-    # Get original aspect ratio
-    orig_width, orig_height = img.size
-    aspect_ratio = orig_width / orig_height
-    
-    # Calculate new dimensions maintaining aspect ratio
-    # height = sqrt(area / aspect_ratio), width = height * aspect_ratio
-    new_height = math.sqrt(TARGET_PIXELS / aspect_ratio)
-    new_width = new_height * aspect_ratio
-    
-    # Round to nearest 16 pixels for clean tokenization
-    # The model uses 16x16 spatial compression
-    new_height = round(new_height / 16) * 16
-    new_width = round(new_width / 16) * 16
-    
-    # Ensure minimum dimensions (at least 256 pixels)
-    new_height = max(new_height, 256)
-    new_width = max(new_width, 256)
-    
-    # Convert to integers
-    new_height = int(new_height)
-    new_width = int(new_width)
-    
-    print(f"Resizing image from {orig_width}x{orig_height} to {new_width}x{new_height} (aspect ratio: {aspect_ratio:.2f})")
-    
-    img_resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-
-    # Save resized image
-    image_path = UPLOAD_DIR / f"{job_id}.png"  # Always save as PNG for consistency
-    img_resized.save(image_path, format='PNG')
+    # Save uploaded image directly (SDG script handles resizing internally)
+    image_path = UPLOAD_DIR / f"{job_id}{file_ext}"
+    with open(image_path, 'wb') as f:
+        f.write(contents)
 
     # Update job with correct paths
     output_dir = OUTPUT_DIR / job_id
