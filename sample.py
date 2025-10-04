@@ -207,7 +207,8 @@ def main_single(
         # Skip if already generated
         meta_data_sample = {'file_name': batch_file_name}
         meta_data_out_path = os.path.join(outdir_meta, f'sample_{idx}.json')
-        if os.path.isfile(meta_data_out_path):
+        if os.path.isfile(meta_data_out_path) and config.skip_existing:
+            tqdm.write(f"Skipping {batch_file_name} since {meta_data_out_path} already exists")
             continue
         
         # Check if file exists for eval
@@ -222,8 +223,8 @@ def main_single(
                 if not os.path.isfile(f"{out_file_path_view}.mp4"):
                     eval_file_exists = False
                     break
-            if eval_file_exists:
-                print(f"Skipping {out_file_name_view}")
+            if eval_file_exists and config.skip_existing:
+                tqdm.write(f"Skipping {out_file_name_view} since it already exists")
                 continue
         
         # Move to device and cast tensors
@@ -386,9 +387,9 @@ def main_single(
             test_video_out = []
             test_video_out_rgb = []
             test_video_in = []
-        print(f"Saved batch index {idx} to {outdir}")
+        tqdm.write(f"Saved batch index {idx} to {outdir}")
         
-    print(f"Saved all results to {outdir}")
+    tqdm.write(f"Saved all results to {outdir}")
     return transformer, vae, distributed_state, ckpt_path
 
 if __name__ == "__main__":

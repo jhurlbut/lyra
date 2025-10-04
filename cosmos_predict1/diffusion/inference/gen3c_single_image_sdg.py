@@ -552,7 +552,7 @@ def demo(args):
             fps=args.fps,
             H=args.height,
             W=final_width,
-            video_save_quality=5,
+            video_save_quality=8,
             video_save_path=video_save_path,
         )
         log.info(f"Saved video to {video_save_path}")

@@ -94,7 +94,6 @@ dataset_registry['lyra_static_demo_generated'] = {
         "is_multi_view": True,
         "has_latents": True,
         "is_generated_cosmos_latent": True,
-        "is_w2c": True,
         "sampling_buckets": [['0'], ['1'], ['2'], ['3'], ['4'], ['5']],
         "start_view_idx": 0,
     },
