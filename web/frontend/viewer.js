@@ -312,7 +312,7 @@ function onWindowResize() {
 export async function loadPLY(url) {
     try {
         console.log('Loading Gaussian Splat PLY from:', url);
-        
+
         // Remove existing mesh
         if (splatMesh) {
             scene.remove(splatMesh);
@@ -323,92 +323,103 @@ export async function loadPLY(url) {
         const Spark = await import('@sparkjsdev/spark');
         console.log('SparkJS loaded:', Spark);
 
-        // Create SplatMesh with the PLY URL and onLoad callback
-        return new Promise((resolve, reject) => {
-            splatMesh = new Spark.SplatMesh({ 
-                url: url,
-                onLoad: (mesh) => {
-                    console.log('Splat mesh loaded successfully via onLoad callback!');
-                    
-                    // Add to scene first
-                    scene.add(mesh);
-                    console.log('SplatMesh added to scene');
-                    
-                    // Get accurate bounding box using SparkJS method
-                    let box, center, size;
-                    try {
-                        // Use SparkJS getBoundingBox for accurate bounds
-                        box = mesh.getBoundingBox(false); // false = include splat scales for accuracy
-                        center = box.getCenter(new THREE.Vector3());
-                        size = box.getSize(new THREE.Vector3());
-                        console.log('Using SparkJS getBoundingBox');
-                    } catch (e) {
-                        // Fallback to Three.js method if SparkJS method fails
-                        box = new THREE.Box3().setFromObject(mesh);
-                        center = box.getCenter(new THREE.Vector3());
-                        size = box.getSize(new THREE.Vector3());
-                        console.log('Using Three.js Box3.setFromObject fallback');
-                    }
-                    
-                    console.log('Bounding box:', { center, size });
-
-                    // Note: Camera matrices now correctly generate OpenCV-convention data
-                    // No rotation needed - data is correctly oriented at source
-
-                    // Calculate appropriate scale - make it 5x bigger than before
-                    const maxDim = Math.max(size.x, size.y, size.z);
-                    const targetSize = 20; // 5x bigger than the original 4 units
-                    const scaleFactor = maxDim > 0 ? targetSize / maxDim : 1;
-                    mesh.scale.setScalar(scaleFactor);
-                    
-                    // Position the mesh so its bottom (min Y) is at Y=0 and back (max Z) is at Z=0
-                    // First center it at origin
-                    mesh.position.sub(center);
-                    // Then shift it up by half the scaled height so bottom is at 0
-                    const scaledHeight = size.y * scaleFactor;
-                    mesh.position.y = scaledHeight / 2;
-                    // And shift it forward by half the scaled depth so back is at 0
-                    const scaledDepth = size.z * scaleFactor;
-                    mesh.position.z = -scaledDepth / 2;
-                    
-                    console.log(`Scaled by ${scaleFactor} to fit target size of ${targetSize} units`);
-                    console.log(`Positioned with bottom at Y=0, back at Z=0`);
-                    console.log(`Shifted up by ${scaledHeight / 2}, forward by ${scaledDepth / 2}`);
-                    
-                    // Position camera for typical reconstruction viewpoint (closer and better angle)
-                    const viewDistance = targetSize * 2.0;  // Closer than previous 2.5x
-                    camera.position.set(0, scaledHeight * 0.3, viewDistance);
-                    camera.lookAt(0, scaledHeight * 0.4, 0);  // Look at mid-height
-                    
-                    // Update controls target to center of model
-                    controls.target.set(0, scaledHeight / 2, 0);
-                    controls.update();
-                    
-                    // Attach transform controls to the mesh
-                    if (transformControls) {
-                        transformControls.attach(mesh);
-                    }
-                    
-                    // Make viewer section visible
-                    const viewerSection = document.getElementById('viewer-section');
-                    if (viewerSection) {
-                        viewerSection.style.display = 'block';
-                    }
-                    
-                    console.log('Gaussian splat loaded and displayed with SparkJS!');
-                    resolve(true);
-                }
-            });
-            
-            // Add error timeout
-            setTimeout(() => {
-                reject(new Error('Timeout loading splat mesh after 30 seconds'));
-            }, 30000);
+        // Use SplatLoader with progress tracking
+        const loader = new Spark.SplatLoader();
+        const packedSplats = await loader.loadAsync(url, (event) => {
+            if (event.type === "progress") {
+                const progress = event.lengthComputable
+                    ? `${((event.loaded / event.total) * 100).toFixed(2)}%`
+                    : `${event.loaded} bytes`;
+                console.log(`Background download progress: ${progress}`);
+            }
         });
+
+        console.log('Splat data loaded, creating mesh...');
+
+        // Create SplatMesh from loaded data
+        splatMesh = new Spark.SplatMesh({ packedSplats });
+
+        // Re-orient from OpenCV to OpenGL coordinates
+        splatMesh.quaternion.set(1, 0, 0, 0);
+        splatMesh.position.set(0, 0, -1);
+        splatMesh.scale.setScalar(0.5);
+
+        console.log('Applied coordinate system transformation (OpenCV -> OpenGL)');
+
+        // Add to scene
+        scene.add(splatMesh);
+        console.log('SplatMesh added to scene');
+
+        // Get accurate bounding box using SparkJS method
+        let box, center, size;
+        try {
+            // Use SparkJS getBoundingBox for accurate bounds
+            box = splatMesh.getBoundingBox(false); // false = include splat scales for accuracy
+            center = box.getCenter(new THREE.Vector3());
+            size = box.getSize(new THREE.Vector3());
+            console.log('Using SparkJS getBoundingBox');
+        } catch (e) {
+            // Fallback to Three.js method if SparkJS method fails
+            box = new THREE.Box3().setFromObject(splatMesh);
+            center = box.getCenter(new THREE.Vector3());
+            size = box.getSize(new THREE.Vector3());
+            console.log('Using Three.js Box3.setFromObject fallback');
+        }
+
+        console.log('Bounding box:', { center, size });
+
+        // Fix coordinate system orientation (OpenCV/COLMAP to OpenGL/Three.js)
+        splatMesh.rotation.x = Math.PI;  // Rotate 180 degrees around X-axis
+
+        // Calculate appropriate scale - make it 5x bigger than before
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const targetSize = 20; // 5x bigger than the original 4 units
+        const scaleFactor = maxDim > 0 ? targetSize / maxDim : 1;
+        // Apply additional scaling on top of the 0.5 coordinate transform scale
+        splatMesh.scale.setScalar(0.5 * scaleFactor);
+
+        // Position the mesh so its bottom (min Y) is at Y=0 and back (max Z) is at Z=0
+        // First center it at origin
+        splatMesh.position.sub(center);
+        // Apply the -1 Z offset from coordinate transform
+        splatMesh.position.z += -1;
+        // Then shift it up by half the scaled height so bottom is at 0
+        const scaledHeight = size.y * scaleFactor;
+        splatMesh.position.y = scaledHeight / 2;
+        // And shift it forward by half the scaled depth so back is at 0
+        const scaledDepth = size.z * scaleFactor;
+        splatMesh.position.z -= scaledDepth / 2;
+
+        console.log(`Scaled by ${0.5 * scaleFactor} (0.5 coord transform * ${scaleFactor} fit) to target size of ${targetSize} units`);
+        console.log(`Positioned with bottom at Y=0, back at Z=0`);
+        console.log(`Shifted up by ${scaledHeight / 2}, forward by ${scaledDepth / 2}`);
+
+        // Position camera for typical reconstruction viewpoint (closer and better angle)
+        const viewDistance = targetSize * 2.0;  // Closer than previous 2.5x
+        camera.position.set(0, scaledHeight * 0.3, viewDistance);
+        camera.lookAt(0, scaledHeight * 0.4, 0);  // Look at mid-height
+
+        // Update controls target to center of model
+        controls.target.set(0, scaledHeight / 2, 0);
+        controls.update();
+
+        // Attach transform controls to the mesh
+        if (transformControls) {
+            transformControls.attach(splatMesh);
+        }
+
+        // Make viewer section visible
+        const viewerSection = document.getElementById('viewer-section');
+        if (viewerSection) {
+            viewerSection.style.display = 'block';
+        }
+
+        console.log('Gaussian splat loaded and displayed with SparkJS!');
+        return true;
 
     } catch (error) {
         console.error('Error loading Gaussian splat with SparkJS:', error);
-        
+
         // Show error in viewer
         const container = document.getElementById('viewer-container');
         if (container) {
@@ -421,13 +432,13 @@ export async function loadPLY(url) {
                 </div>
             `;
         }
-        
+
         // Still show the viewer section
         const viewerSection = document.getElementById('viewer-section');
         if (viewerSection) {
             viewerSection.style.display = 'block';
         }
-        
+
         throw error;
     }
 }
