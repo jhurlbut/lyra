@@ -239,7 +239,7 @@ async def get_ply(job_id: str):
     if not job.ply_file:
         raise HTTPException(status_code=404, detail="PLY file not yet available")
 
-    ply_file = job.output_dir / "reconstruction" / job.ply_file
+    ply_file = job.output_dir / job.ply_file
     if not ply_file.exists():
         raise HTTPException(status_code=404, detail="PLY file not found")
 
