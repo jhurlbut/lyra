@@ -224,17 +224,19 @@ class PipelineRunner:
 
     async def _periodic_video_scan(self, job_id: str, latent_dir: Path):
         """Periodically scan for new videos during SDG execution"""
-        last_video_count = 0
+        last_trajectory_count = 0
         while True:
             try:
                 await asyncio.sleep(10)  # Scan every 10 seconds
 
-                # Scan for videos
-                video_count = 0
+                # Count completed trajectories
+                trajectory_count = 0
                 for trajectory_dir in sorted(latent_dir.glob("*")):
                     if trajectory_dir.is_dir() and trajectory_dir.name.isdigit():
                         rgb_dir = trajectory_dir / "rgb"
                         if rgb_dir.exists():
+                            # Check if this trajectory has a video
+                            has_video = False
                             for video_file in rgb_dir.glob("*.mp4"):
                                 job = self.job_manager.get_job(job_id)
                                 if job:
@@ -242,12 +244,21 @@ class PipelineRunner:
                                     rel_path_str = str(rel_path)
                                     if rel_path_str not in job.video_files:
                                         self.job_manager.add_video_file(job_id, rel_path_str)
-                                        video_count += 1
+                                    has_video = True
 
-                # Log if new videos found
-                if video_count > last_video_count:
-                    self.logger.log_job(job_id, f"Found {video_count - last_video_count} new video(s)")
-                    last_video_count = video_count
+                            if has_video:
+                                trajectory_count += 1
+
+                # Update progress based on trajectory completion (assume 6 trajectories total)
+                if trajectory_count > 0:
+                    # Progress: 0-50% during SDG (6 trajectories)
+                    progress = int((trajectory_count / 6.0) * 50)
+                    self.job_manager.update_job_stage(job_id, PipelineStage.SDG, progress)
+
+                # Log if new trajectories found
+                if trajectory_count > last_trajectory_count:
+                    self.logger.log_job(job_id, f"Completed trajectory {trajectory_count}/6")
+                    last_trajectory_count = trajectory_count
 
             except asyncio.CancelledError:
                 raise
