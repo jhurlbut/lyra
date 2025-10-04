@@ -123,6 +123,10 @@ class PipelineRunner:
         if DEFAULT_SDG_PARAMS.get("multi_trajectory"):
             cmd.append("--multi_trajectory")
 
+        # Add total_movement_distance_factor (default 1.0 for balanced camera motion)
+        movement_factor = DEFAULT_SDG_PARAMS.get("total_movement_distance_factor", 1.0)
+        cmd.extend(["--total_movement_distance_factor", str(movement_factor)])
+
         # Execute directly on AIP job with periodic video scanning
         return await self._run_subprocess(
             job_id, cmd, log_callback, cwd=LYRA_ROOT,
@@ -323,6 +327,7 @@ class PipelineRunner:
             "save_gt_depth": True,
             "save_video_input": False,
             "save_rgb_decoding": False,
+            "skip_existing": False,  # Always regenerate for web jobs
             "out_fps": 24,
         }
 
@@ -367,7 +372,6 @@ dataset_registry['lyra_web_job'] = {{
         "is_multi_view": True,
         "has_latents": True,
         "is_generated_cosmos_latent": True,
-        "is_w2c": True,
         "sampling_buckets": [['0']],
         "start_view_idx": 0,
     }},
