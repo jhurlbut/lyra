@@ -339,9 +339,9 @@ export async function loadPLY(url) {
         splatMesh = new Spark.SplatMesh({ packedSplats });
 
         // Re-orient from OpenCV to OpenGL coordinates
-        splatMesh.quaternion.set(1, 0, 0, 0);
-        splatMesh.position.set(0, 0, -1);
-        splatMesh.scale.setScalar(0.5);
+        //splatMesh.quaternion.set(1, 0, 0, 0);
+       // splatMesh.position.set(0, 0, -1);
+       // splatMesh.scale.setScalar(0.5);
 
         console.log('Applied coordinate system transformation (OpenCV -> OpenGL)');
 
