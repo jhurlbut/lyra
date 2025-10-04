@@ -121,6 +121,9 @@ function initializeUpload() {
 }
 
 function handleFile(file) {
+    // Clear any previous job state
+    clearPreviousJob();
+
     // Validate file type
     const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
     if (!validTypes.includes(file.type)) {
@@ -154,6 +157,46 @@ function clearFile() {
     previewContainer.style.display = 'none';
     startBtn.style.display = 'none';
     fileInput.value = '';
+}
+
+function clearPreviousJob() {
+    // Stop active processes
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+    }
+
+    if (videoCheckInterval) {
+        clearInterval(videoCheckInterval);
+        videoCheckInterval = null;
+    }
+
+    // Reset state variables
+    currentJobId = null;
+    sdgStartTime = null;
+    latentVideoCount = 0;
+    videoCompletionTimes = [];
+
+    // Clear and hide UI sections
+    consoleOutput.innerHTML = '';
+    consoleSection.style.display = 'none';
+
+    videosGrid.innerHTML = '';
+    videosSection.style.display = 'none';
+
+    viewerSection.style.display = 'none';
+
+    progressSection.style.display = 'none';
+
+    // Reset progress UI
+    progressFill.style.width = '0%';
+    progressText.textContent = '0%';
+
+    // Reset stage labels
+    const sdgStageLabel = document.querySelector('#stage-sdg .stage-label');
+    if (sdgStageLabel) {
+        sdgStageLabel.textContent = 'Latent Gen';
+    }
 }
 
 async function startProcessing() {
