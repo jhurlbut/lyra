@@ -6,6 +6,12 @@ let currentFile = null;
 let eventSource = null;
 let videoCheckInterval = null;
 
+// Progress tracking
+let sdgStartTime = null;
+let latentVideoCount = 0;
+let videoCompletionTimes = [];
+const EXPECTED_TRAJECTORIES = 6;
+
 // DOM Elements
 const uploadArea = document.getElementById('upload-area');
 const fileInput = document.getElementById('file-input');
@@ -293,6 +299,11 @@ function toggleConsole() {
 }
 
 function startVideoCheck() {
+    // Initialize SDG start time
+    if (!sdgStartTime) {
+        sdgStartTime = Date.now();
+    }
+
     videoCheckInterval = setInterval(async () => {
         try {
             // Check for videos
@@ -307,9 +318,54 @@ function startVideoCheck() {
             if (jobResponse.ok) {
                 const job = await jobResponse.json();
 
-                // Update progress bar with actual backend progress
-                if (job.progress !== undefined) {
-                    updateProgress(job.progress);
+                // Count latent videos and update stage label
+                const newLatentCount = job.video_files ?
+                    job.video_files.filter(path => path.includes('latents/')).length : 0;
+
+                if (newLatentCount !== latentVideoCount) {
+                    // New video detected - record completion time
+                    const now = Date.now();
+                    videoCompletionTimes.push(now);
+                    latentVideoCount = newLatentCount;
+                }
+
+                // Update "Latent Gen x/6" label if in SDG stage
+                if (job.stage === 'sdg') {
+                    const stageLabel = document.querySelector('#stage-sdg .stage-label');
+                    if (stageLabel) {
+                        stageLabel.textContent = `Latent Gen ${latentVideoCount}/${EXPECTED_TRAJECTORIES}`;
+                    }
+
+                    // Calculate adaptive time-based progress estimation
+                    if (latentVideoCount > 0 && videoCompletionTimes.length > 0) {
+                        const now = Date.now();
+                        const elapsedMinutes = (now - sdgStartTime) / (1000 * 60);
+                        const avgMinutesPerVideo = elapsedMinutes / latentVideoCount;
+                        const remainingVideos = EXPECTED_TRAJECTORIES - latentVideoCount;
+                        const estimatedRemainingMinutes = remainingVideos * avgMinutesPerVideo;
+
+                        // Total pipeline estimate: SDG + reconstruction (10 min) + final (10 min)
+                        const totalEstimatedMinutes = (EXPECTED_TRAJECTORIES * avgMinutesPerVideo) + 10 + 10;
+                        const estimatedProgress = Math.min(95, (elapsedMinutes / totalEstimatedMinutes) * 100);
+
+                        // Blend estimated progress with backend progress (favor whichever is higher)
+                        const blendedProgress = Math.max(job.progress || 0, estimatedProgress);
+                        updateProgress(Math.round(blendedProgress));
+
+                        console.log(`Progress estimate: ${latentVideoCount}/${EXPECTED_TRAJECTORIES} videos, ` +
+                                    `${avgMinutesPerVideo.toFixed(1)} min/video avg, ` +
+                                    `~${estimatedRemainingMinutes.toFixed(0)} min remaining`);
+                    } else {
+                        // No videos yet, use backend progress
+                        if (job.progress !== undefined) {
+                            updateProgress(job.progress);
+                        }
+                    }
+                } else {
+                    // Not in SDG stage, use backend progress
+                    if (job.progress !== undefined) {
+                        updateProgress(job.progress);
+                    }
                 }
 
                 // Check completion status
@@ -350,26 +406,24 @@ function displayVideos(videos) {
         let friendlyName = filename;
         
         // Check if this is a latent video (from SDG phase)
-        if (videoPath.includes('latents/0/rgb/') || videoPath.includes('latents/rgb/')) {
-            friendlyName = '🎥 Generated Camera Trajectory (Latent)';
-            // Add job ID or trajectory type if present in filename
-            if (filename.includes('left')) {
-                friendlyName = '🎥 Left Camera Trajectory (Latent)';
-            } else if (filename.includes('right')) {
-                friendlyName = '🎥 Right Camera Trajectory (Latent)';
-            } else if (filename.includes('up')) {
-                friendlyName = '🎥 Upward Camera Trajectory (Latent)';
+        const latentMatch = videoPath.match(/latents\/(\d+)\/rgb\//);
+        if (latentMatch || videoPath.includes('latents/rgb/')) {
+            const trajectoryNum = latentMatch ? parseInt(latentMatch[1]) : 0;
+            if (trajectoryNum === 0) {
+                friendlyName = '🎥 Generated Camera Trajectory (Latent)';
+            } else {
+                friendlyName = `🎥 Generated Camera Trajectory (Latent) ${trajectoryNum + 1}`;
             }
-        } 
+        }
         // Map technical filenames to user-friendly descriptions for reconstruction videos
         else if (filename.includes('rgb_wave')) {
             friendlyName = '🌊 Gaussian Splat Wave Animation';
         } else if (filename.includes('rgb_0_view_idx')) {
-            friendlyName = '📹 Multi-View Rendering';
+            friendlyName = 'Splat Preview Rendering';
         } else if (filename === 'rgb_0.mp4') {
             friendlyName = '🎬 Primary Reconstruction View';
         } else if (filename === 'sample_0.mp4') {
-            friendlyName = '✨ Sample Output Visualization';
+            friendlyName = 'output vis: splat / latent / depth';
         } else if (filename.includes('left')) {
             friendlyName = '⬅️ Left Trajectory Video';
         } else if (filename.includes('right')) {
@@ -430,19 +484,63 @@ async function onPipelineComplete() {
 
 async function loadPLYFile() {
     try {
+        // Create loading indicator
+        const viewerContainer = document.getElementById('viewer-container');
+        const loadingIndicator = document.createElement('div');
+        loadingIndicator.id = 'ply-loading-indicator';
+        loadingIndicator.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px 40px;
+            border-radius: 10px;
+            font-size: 18px;
+            text-align: center;
+            z-index: 1000;
+        `;
+        loadingIndicator.innerHTML = `
+            <div style="margin-bottom: 10px;">⏳ Loading PLY...</div>
+            <div id="ply-progress-text" style="font-size: 24px; font-weight: bold;">0%</div>
+        `;
+
+        // Show viewer section and add loading indicator
+        viewerSection.style.display = 'block';
+        viewerContainer.style.position = 'relative';
+        viewerContainer.appendChild(loadingIndicator);
+
         const response = await fetch(`/api/outputs/${currentJobId}/ply`);
         if (response.ok) {
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
 
-            await loadPLY(url);
-            viewerSection.style.display = 'block';
+            // Progress callback
+            const onProgress = (percentage) => {
+                const progressText = document.getElementById('ply-progress-text');
+                if (progressText) {
+                    progressText.textContent = `${percentage}%`;
+                }
+            };
+
+            await loadPLY(url, onProgress);
+
+            // Remove loading indicator
+            if (loadingIndicator && loadingIndicator.parentNode) {
+                loadingIndicator.remove();
+            }
 
             // Scroll to viewer
             viewerSection.scrollIntoView({ behavior: 'smooth' });
         }
     } catch (error) {
         console.error('Error loading PLY:', error);
+        // Remove loading indicator on error
+        const loadingIndicator = document.getElementById('ply-loading-indicator');
+        if (loadingIndicator && loadingIndicator.parentNode) {
+            loadingIndicator.remove();
+        }
     }
 }
 

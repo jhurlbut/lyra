@@ -309,7 +309,7 @@ function onWindowResize() {
     renderer.setSize(width, height);
 }
 
-export async function loadPLY(url) {
+export async function loadPLY(url, onProgress = null) {
     console.log('Loading Gaussian Splat PLY from:', url);
 
     // Remove existing mesh
@@ -333,6 +333,12 @@ export async function loadPLY(url) {
                 ? `${((event.loaded / event.total) * 100).toFixed(2)}%`
                 : `${event.loaded} bytes`;
             console.log(`Background download progress: ${progress}`);
+
+            // Call custom progress callback if provided
+            if (onProgress && event.lengthComputable) {
+                const percentage = ((event.loaded / event.total) * 100).toFixed(0);
+                onProgress(percentage);
+            }
         }
     })
     .then((packedSplats) => {
