@@ -29,7 +29,9 @@ def apply_transformation(Bx4x4, another_matrix):
 
 def look_at_matrix(camera_pos, target, invert_pos=True):
     """Creates a 4x4 look-at matrix, keeping the camera pointing towards a target."""
-    forward = (target - camera_pos).float()
+    # For OpenCV convention, Z-axis should point FROM camera INTO the scene
+    # So forward vector points from target back to camera (opposite of view direction)
+    forward = (camera_pos - target).float()
     forward = forward / torch.norm(forward)
 
     up = torch.tensor([0.0, 1.0, 0.0], device=camera_pos.device)  # assuming Y-up coordinate system

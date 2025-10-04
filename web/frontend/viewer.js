@@ -351,10 +351,10 @@ export async function loadPLY(url) {
                     }
                     
                     console.log('Bounding box:', { center, size });
-                    
-                    // Fix coordinate system orientation (OpenCV/COLMAP to OpenGL/Three.js)
-                    mesh.rotation.x = Math.PI;  // Rotate 180 degrees around X-axis
-                    
+
+                    // Note: Camera matrices now correctly generate OpenCV-convention data
+                    // No rotation needed - data is correctly oriented at source
+
                     // Calculate appropriate scale - make it 5x bigger than before
                     const maxDim = Math.max(size.x, size.y, size.z);
                     const targetSize = 20; // 5x bigger than the original 4 units
