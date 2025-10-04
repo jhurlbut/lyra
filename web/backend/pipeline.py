@@ -451,8 +451,11 @@ dataset_registry['lyra_web_job'] = {{
                 rel_path = video_file.relative_to(output_dir)
                 self.job_manager.add_video_file(job_id, str(rel_path))
 
-        # Look for PLY file
-        for ply_file in output_dir.rglob("*.ply"):
-            rel_path = ply_file.relative_to(output_dir)
-            self.job_manager.set_ply_file(job_id, str(rel_path))
-            break  # Use first PLY found
+        # Look for PLY file in reconstruction subdirectory
+        reconstruction_dir = output_dir / "reconstruction"
+        if reconstruction_dir.exists():
+            for ply_file in reconstruction_dir.rglob("*.ply"):
+                # Store path relative to reconstruction dir (for use with main.py prefix)
+                rel_path = ply_file.relative_to(reconstruction_dir)
+                self.job_manager.set_ply_file(job_id, str(rel_path))
+                break  # Use first PLY found
