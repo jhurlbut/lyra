@@ -290,13 +290,34 @@ function toggleConsole() {
 function startVideoCheck() {
     videoCheckInterval = setInterval(async () => {
         try {
-            const response = await fetch(`/api/outputs/${currentJobId}/videos`);
-            if (response.ok) {
-                const data = await response.json();
-                displayVideos(data.videos);
+            // Check for videos
+            const videoResponse = await fetch(`/api/outputs/${currentJobId}/videos`);
+            if (videoResponse.ok) {
+                const videoData = await videoResponse.json();
+                displayVideos(videoData.videos);
+            }
+
+            // Check job status and progress
+            const jobResponse = await fetch(`/api/jobs/${currentJobId}`);
+            if (jobResponse.ok) {
+                const job = await jobResponse.json();
+
+                // Update progress bar with actual backend progress
+                if (job.progress !== undefined) {
+                    updateProgress(job.progress);
+                }
+
+                // Check completion status
+                if (job.status === 'completed') {
+                    clearInterval(videoCheckInterval);
+                    onPipelineComplete();
+                } else if (job.status === 'failed') {
+                    clearInterval(videoCheckInterval);
+                    showError(job.error_message || 'Pipeline failed');
+                }
             }
         } catch (error) {
-            console.error('Error checking videos:', error);
+            console.error('Error checking status:', error);
         }
     }, 5000); // Check every 5 seconds
 }
