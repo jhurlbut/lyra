@@ -21,6 +21,7 @@ SAMPLE_SCRIPT = LYRA_ROOT / "sample.py"
 DEFAULT_SDG_PARAMS = {
     "foreground_masking": True,
     "multi_trajectory": True,
+    "total_movement_distance_factor": 1.0,
 }
 
 # Extended parameters for fine-tuning (not used by default)
