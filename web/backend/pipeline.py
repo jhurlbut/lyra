@@ -123,8 +123,11 @@ class PipelineRunner:
         if DEFAULT_SDG_PARAMS.get("multi_trajectory"):
             cmd.append("--multi_trajectory")
 
-        # Execute directly on AIP job
-        return await self._run_subprocess(job_id, cmd, log_callback, cwd=LYRA_ROOT)
+        # Execute directly on AIP job with periodic video scanning
+        return await self._run_subprocess(
+            job_id, cmd, log_callback, cwd=LYRA_ROOT,
+            scan_videos_dir=output_dir  # Enable periodic video scanning during SDG
+        )
 
     async def _run_reconstruction(
         self,
@@ -147,7 +150,8 @@ class PipelineRunner:
         job_id: str,
         cmd: list,
         log_callback: Optional[Callable[[str], None]],
-        cwd: Optional[Path] = None
+        cwd: Optional[Path] = None,
+        scan_videos_dir: Optional[Path] = None
     ) -> bool:
         """Execute subprocess directly with conda environment"""
         # Set up environment
@@ -169,16 +173,24 @@ class PipelineRunner:
             executable='/bin/bash'
         )
 
-        return await self._stream_output(job_id, process, log_callback)
+        return await self._stream_output(job_id, process, log_callback, scan_videos_dir)
 
     async def _stream_output(
         self,
         job_id: str,
         process: asyncio.subprocess.Process,
-        log_callback: Optional[Callable[[str], None]]
+        log_callback: Optional[Callable[[str], None]],
+        scan_videos_dir: Optional[Path] = None
     ) -> bool:
-        """Stream subprocess output to logs"""
+        """Stream subprocess output to logs with optional periodic video scanning"""
         try:
+            # Create a task for periodic video scanning if enabled
+            scan_task = None
+            if scan_videos_dir:
+                scan_task = asyncio.create_task(
+                    self._periodic_video_scan(job_id, scan_videos_dir)
+                )
+
             while True:
                 line = await process.stdout.readline()
                 if not line:
@@ -191,6 +203,14 @@ class PipelineRunner:
             # Wait for process to complete
             returncode = await process.wait()
 
+            # Cancel periodic scanning task if it exists
+            if scan_task:
+                scan_task.cancel()
+                try:
+                    await scan_task
+                except asyncio.CancelledError:
+                    pass
+
             if returncode == 0:
                 await self._log(job_id, "Command completed successfully", log_callback)
                 return True
@@ -201,6 +221,39 @@ class PipelineRunner:
         except Exception as e:
             await self._log(job_id, f"Error executing command: {str(e)}", log_callback)
             return False
+
+    async def _periodic_video_scan(self, job_id: str, latent_dir: Path):
+        """Periodically scan for new videos during SDG execution"""
+        last_video_count = 0
+        while True:
+            try:
+                await asyncio.sleep(10)  # Scan every 10 seconds
+
+                # Scan for videos
+                video_count = 0
+                for trajectory_dir in sorted(latent_dir.glob("*")):
+                    if trajectory_dir.is_dir() and trajectory_dir.name.isdigit():
+                        rgb_dir = trajectory_dir / "rgb"
+                        if rgb_dir.exists():
+                            for video_file in rgb_dir.glob("*.mp4"):
+                                job = self.job_manager.get_job(job_id)
+                                if job:
+                                    rel_path = Path("latents") / trajectory_dir.name / "rgb" / video_file.name
+                                    rel_path_str = str(rel_path)
+                                    if rel_path_str not in job.video_files:
+                                        self.job_manager.add_video_file(job_id, rel_path_str)
+                                        video_count += 1
+
+                # Log if new videos found
+                if video_count > last_video_count:
+                    self.logger.log_job(job_id, f"Found {video_count - last_video_count} new video(s)")
+                    last_video_count = video_count
+
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                # Silently ignore errors in background scanning
+                pass
 
     def _parse_progress(self, job_id: str, log_line: str):
         """Parse progress from log lines"""
