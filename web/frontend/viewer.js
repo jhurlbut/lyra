@@ -453,13 +453,22 @@ export function sortSplatsByDepth() {
     const splats = [];
 
     // Extract all splat data with camera distance
-    splatMesh.forEachSplat((index, splat) => {
-        const dx = splat.center.x - cameraPos.x;
-        const dy = splat.center.y - cameraPos.y;
-        const dz = splat.center.z - cameraPos.z;
+    // Callback signature: (index, center, scales, quaternion, opacity, color)
+    splatMesh.forEachSplat((index, center, scales, quaternion, opacity, color) => {
+        const dx = center.x - cameraPos.x;
+        const dy = center.y - cameraPos.y;
+        const dz = center.z - cameraPos.z;
         const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
-        splats.push({ index, splat, distance });
+        splats.push({
+            index,
+            center: center.clone(),
+            scales: scales.clone(),
+            quaternion: quaternion.clone(),
+            opacity,
+            color: color.clone(),
+            distance
+        });
     });
 
     // Sort by distance (back to front)
@@ -477,8 +486,16 @@ export function sortSplatsByOpacity() {
     const splats = [];
 
     // Extract all splat data with opacity
-    splatMesh.forEachSplat((index, splat) => {
-        splats.push({ index, splat, opacity: splat.rgba[3] });
+    // Callback signature: (index, center, scales, quaternion, opacity, color)
+    splatMesh.forEachSplat((index, center, scales, quaternion, opacity, color) => {
+        splats.push({
+            index,
+            center: center.clone(),
+            scales: scales.clone(),
+            quaternion: quaternion.clone(),
+            opacity,
+            color: color.clone()
+        });
     });
 
     // Sort by opacity (descending - highest first)
@@ -496,8 +513,16 @@ export function reverseSplatOrder() {
     const splats = [];
 
     // Extract all splat data
-    splatMesh.forEachSplat((index, splat) => {
-        splats.push({ index, splat });
+    // Callback signature: (index, center, scales, quaternion, opacity, color)
+    splatMesh.forEachSplat((index, center, scales, quaternion, opacity, color) => {
+        splats.push({
+            index,
+            center: center.clone(),
+            scales: scales.clone(),
+            quaternion: quaternion.clone(),
+            opacity,
+            color: color.clone()
+        });
     });
 
     // Reverse the array
@@ -518,12 +543,13 @@ function rebuildSplatOrder(sortedSplats) {
     const newPackedSplats = new Spark.PackedSplats(sortedSplats.length);
 
     // Rebuild in sorted order
-    sortedSplats.forEach(({ splat }) => {
+    sortedSplats.forEach(({ center, scales, quaternion, opacity, color }) => {
         newPackedSplats.pushSplat(
-            splat.center,
-            splat.scale,
-            splat.rgba,
-            splat.rotation
+            center,
+            scales,
+            quaternion,
+            opacity,
+            color
         );
     });
 
