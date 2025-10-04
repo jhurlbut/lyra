@@ -310,30 +310,29 @@ function onWindowResize() {
 }
 
 export async function loadPLY(url) {
-    try {
-        console.log('Loading Gaussian Splat PLY from:', url);
+    console.log('Loading Gaussian Splat PLY from:', url);
 
-        // Remove existing mesh
-        if (splatMesh) {
-            scene.remove(splatMesh);
-            splatMesh = null;
+    // Remove existing mesh
+    if (splatMesh) {
+        scene.remove(splatMesh);
+        splatMesh = null;
+    }
+
+    // Dynamically import SparkJS (ES module)
+    const Spark = await import('@sparkjsdev/spark');
+    console.log('SparkJS loaded:', Spark);
+
+    // Use SplatLoader with progress tracking
+    const loader = new Spark.SplatLoader();
+    return loader.loadAsync(url, (event) => {
+        if (event.type === "progress") {
+            const progress = event.lengthComputable
+                ? `${((event.loaded / event.total) * 100).toFixed(2)}%`
+                : `${event.loaded} bytes`;
+            console.log(`Background download progress: ${progress}`);
         }
-
-        // Dynamically import SparkJS (ES module)
-        const Spark = await import('@sparkjsdev/spark');
-        console.log('SparkJS loaded:', Spark);
-
-        // Use SplatLoader with progress tracking
-        const loader = new Spark.SplatLoader();
-        const packedSplats = await loader.loadAsync(url, (event) => {
-            if (event.type === "progress") {
-                const progress = event.lengthComputable
-                    ? `${((event.loaded / event.total) * 100).toFixed(2)}%`
-                    : `${event.loaded} bytes`;
-                console.log(`Background download progress: ${progress}`);
-            }
-        });
-
+    })
+    .then((packedSplats) => {
         console.log('Splat data loaded, creating mesh...');
 
         // Create SplatMesh from loaded data
@@ -367,9 +366,6 @@ export async function loadPLY(url) {
         }
 
         console.log('Bounding box:', { center, size });
-
-        // Fix coordinate system orientation (OpenCV/COLMAP to OpenGL/Three.js)
-        splatMesh.rotation.x = Math.PI;  // Rotate 180 degrees around X-axis
 
         // Calculate appropriate scale - make it 5x bigger than before
         const maxDim = Math.max(size.x, size.y, size.z);
@@ -416,8 +412,8 @@ export async function loadPLY(url) {
 
         console.log('Gaussian splat loaded and displayed with SparkJS!');
         return true;
-
-    } catch (error) {
+    })
+    .catch((error) => {
         console.error('Error loading Gaussian splat with SparkJS:', error);
 
         // Show error in viewer
@@ -440,7 +436,7 @@ export async function loadPLY(url) {
         }
 
         throw error;
-    }
+    });
 }
 
 
