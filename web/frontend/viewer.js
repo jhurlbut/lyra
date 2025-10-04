@@ -322,6 +322,9 @@ export async function loadPLY(url) {
     const Spark = await import('@sparkjsdev/spark');
     console.log('SparkJS loaded:', Spark);
 
+    // Store Spark globally for sorting functions
+    window.Spark = Spark;
+
     // Use SplatLoader with progress tracking
     const loader = new Spark.SplatLoader();
     return loader.loadAsync(url, (event) => {
@@ -339,8 +342,8 @@ export async function loadPLY(url) {
         splatMesh = new Spark.SplatMesh({ packedSplats });
 
         // Re-orient from OpenCV to OpenGL coordinates
-        //splatMesh.quaternion.set(1, 0, 0, 0);
-       // splatMesh.position.set(0, 0, -1);
+        splatMesh.quaternion.set(1, 0, 0, 0);
+        //splatMesh.position.set(0, 0, -1);
        // splatMesh.scale.setScalar(0.5);
 
         console.log('Applied coordinate system transformation (OpenCV -> OpenGL)');
@@ -439,6 +442,97 @@ export async function loadPLY(url) {
     });
 }
 
+
+// Splat sorting functions
+export function sortSplatsByDepth() {
+    if (!splatMesh || !camera) return;
+
+    console.log('Sorting splats by camera depth...');
+
+    const cameraPos = camera.position;
+    const splats = [];
+
+    // Extract all splat data with camera distance
+    splatMesh.forEachSplat((index, splat) => {
+        const dx = splat.center.x - cameraPos.x;
+        const dy = splat.center.y - cameraPos.y;
+        const dz = splat.center.z - cameraPos.z;
+        const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+        splats.push({ index, splat, distance });
+    });
+
+    // Sort by distance (back to front)
+    splats.sort((a, b) => b.distance - a.distance);
+
+    // Rebuild packedSplats in new order
+    rebuildSplatOrder(splats);
+}
+
+export function sortSplatsByOpacity() {
+    if (!splatMesh) return;
+
+    console.log('Sorting splats by opacity...');
+
+    const splats = [];
+
+    // Extract all splat data with opacity
+    splatMesh.forEachSplat((index, splat) => {
+        splats.push({ index, splat, opacity: splat.rgba[3] });
+    });
+
+    // Sort by opacity (descending - highest first)
+    splats.sort((a, b) => b.opacity - a.opacity);
+
+    // Rebuild packedSplats in new order
+    rebuildSplatOrder(splats);
+}
+
+export function reverseSplatOrder() {
+    if (!splatMesh) return;
+
+    console.log('Reversing splat order...');
+
+    const splats = [];
+
+    // Extract all splat data
+    splatMesh.forEachSplat((index, splat) => {
+        splats.push({ index, splat });
+    });
+
+    // Reverse the array
+    splats.reverse();
+
+    // Rebuild packedSplats in new order
+    rebuildSplatOrder(splats);
+}
+
+function rebuildSplatOrder(sortedSplats) {
+    const Spark = window.Spark;
+    if (!Spark) {
+        console.error('Spark not available');
+        return;
+    }
+
+    // Create new PackedSplats with same capacity
+    const newPackedSplats = new Spark.PackedSplats(sortedSplats.length);
+
+    // Rebuild in sorted order
+    sortedSplats.forEach(({ splat }) => {
+        newPackedSplats.pushSplat(
+            splat.center,
+            splat.scale,
+            splat.rgba,
+            splat.rotation
+        );
+    });
+
+    // Replace the mesh's packed splats
+    splatMesh.packedSplats = newPackedSplats;
+    splatMesh.packedSplats.needsUpdate = true;
+
+    console.log(`Reordered ${sortedSplats.length} splats`);
+}
 
 export function resetCamera() {
     if (splatMesh) {

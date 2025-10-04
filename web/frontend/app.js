@@ -1,4 +1,4 @@
-import { initViewer, loadPLY, resetCamera } from './viewer.js';
+import { initViewer, loadPLY, resetCamera, sortSplatsByDepth, sortSplatsByOpacity, reverseSplatOrder } from './viewer.js';
 
 // State
 let currentJobId = null;
@@ -112,6 +112,11 @@ function initializeUpload() {
     });
 
     closeErrorBtn.addEventListener('click', () => errorModal.style.display = 'none');
+
+    // Splat sorting event handlers
+    document.getElementById('sort-by-depth').addEventListener('click', sortSplatsByDepth);
+    document.getElementById('sort-by-opacity').addEventListener('click', sortSplatsByOpacity);
+    document.getElementById('reverse-order').addEventListener('click', reverseSplatOrder);
 }
 
 function handleFile(file) {
