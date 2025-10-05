@@ -8,9 +8,18 @@ let videoCheckInterval = null;
 
 // Progress tracking
 let sdgStartTime = null;
+let processingStartTime = null;
 let latentVideoCount = 0;
 let videoCompletionTimes = [];
 const EXPECTED_TRAJECTORIES = 6;
+let progressSimulationInterval = null;
+
+// Time estimates (in minutes)
+const EST_MODEL_LOAD = 3;
+const EST_PER_TRAJECTORY = 10;
+const EST_RECONSTRUCTION = 10;
+const EST_FINALIZATION = 2;
+const EST_TOTAL = EST_MODEL_LOAD + (EST_PER_TRAJECTORY * EXPECTED_TRAJECTORIES) + EST_RECONSTRUCTION + EST_FINALIZATION; // ~75 min
 
 // DOM Elements
 const uploadArea = document.getElementById('upload-area');
@@ -171,11 +180,14 @@ function clearPreviousJob() {
         videoCheckInterval = null;
     }
 
+    stopProgressSimulation();
+
     // Reset state variables
     currentJobId = null;
     sdgStartTime = null;
     latentVideoCount = 0;
     videoCompletionTimes = [];
+    processingStartTime = null;
 
     // Clear and hide UI sections
     consoleOutput.innerHTML = '';
@@ -204,7 +216,7 @@ async function startProcessing() {
 
     try {
         startBtn.disabled = true;
-        startBtn.textContent = 'Uploading...';
+        startBtn.textContent = 'Processing...';
 
         // Upload file
         const formData = new FormData();
@@ -221,6 +233,11 @@ async function startProcessing() {
 
         const uploadData = await uploadResponse.json();
         currentJobId = uploadData.job_id;
+
+        // Update preview to show resized image from server
+        if (uploadData.resized_image_url) {
+            previewImage.src = uploadData.resized_image_url;
+        }
 
         // Start processing
         const processResponse = await fetch(`/api/process/${currentJobId}`, {
@@ -326,6 +343,50 @@ function updateProgress(percent) {
     progressText.textContent = `${percent}%`;
 }
 
+function startProgressSimulation() {
+    // Clear any existing simulation
+    if (progressSimulationInterval) {
+        clearInterval(progressSimulationInterval);
+    }
+
+    progressSimulationInterval = setInterval(() => {
+        if (!processingStartTime) return;
+
+        const elapsedMinutes = (Date.now() - processingStartTime) / (1000 * 60);
+        let simulatedProgress = 0;
+
+        if (latentVideoCount === 0) {
+            // Model loading phase (0-3 min → 0-5%)
+            simulatedProgress = Math.min(5, (elapsedMinutes / EST_MODEL_LOAD) * 5);
+        } else {
+            // After first video, use time-based estimation
+            const sdgElapsed = (Date.now() - sdgStartTime) / (1000 * 60);
+            const avgPerVideo = latentVideoCount > 0 ? sdgElapsed / latentVideoCount : EST_PER_TRAJECTORY;
+            const estimatedSDGTotal = avgPerVideo * EXPECTED_TRAJECTORIES;
+            const sdgProgress = Math.min(100, (sdgElapsed / estimatedSDGTotal) * 100);
+
+            // Map to 5-70% range (SDG phase)
+            simulatedProgress = 5 + (sdgProgress * 0.65);
+        }
+
+        // Cap at 95% until actual completion
+        simulatedProgress = Math.min(95, simulatedProgress);
+
+        // Only update if simulated is higher than current (never decrease)
+        const currentProgress = parseInt(progressText.textContent) || 0;
+        if (simulatedProgress > currentProgress) {
+            updateProgress(Math.round(simulatedProgress));
+        }
+    }, 5000); // Update every 5 seconds
+}
+
+function stopProgressSimulation() {
+    if (progressSimulationInterval) {
+        clearInterval(progressSimulationInterval);
+        progressSimulationInterval = null;
+    }
+}
+
 function toggleConsole() {
     if (consoleContainer.style.display === 'none') {
         consoleContainer.style.display = 'block';
@@ -337,10 +398,16 @@ function toggleConsole() {
 }
 
 function startVideoCheck() {
-    // Initialize SDG start time
+    // Initialize timing
     if (!sdgStartTime) {
         sdgStartTime = Date.now();
     }
+    if (!processingStartTime) {
+        processingStartTime = Date.now();
+    }
+
+    // Start progress simulation (updates every 5 seconds)
+    startProgressSimulation();
 
     videoCheckInterval = setInterval(async () => {
         try {
@@ -409,9 +476,11 @@ function startVideoCheck() {
                 // Check completion status
                 if (job.status === 'completed') {
                     clearInterval(videoCheckInterval);
+                    stopProgressSimulation();
                     onPipelineComplete();
                 } else if (job.status === 'failed') {
                     clearInterval(videoCheckInterval);
+                    stopProgressSimulation();
                     showError(job.error_message || 'Pipeline failed');
                 }
             }

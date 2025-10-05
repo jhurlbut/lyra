@@ -3,6 +3,8 @@ import asyncio
 from pathlib import Path
 from typing import List
 import shutil
+from PIL import Image
+import io
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse, StreamingResponse
@@ -71,10 +73,42 @@ async def upload_image(file: UploadFile = File(...)):
         output_dir=OUTPUT_DIR / "temp"
     )
 
-    # Save uploaded image directly (SDG script handles resizing internally)
-    image_path = UPLOAD_DIR / f"{job_id}{file_ext}"
-    with open(image_path, 'wb') as f:
-        f.write(contents)
+    # Resize and crop image to 1280×704 (cover fit, no black borders)
+    TARGET_WIDTH = 1280
+    TARGET_HEIGHT = 704
+    TARGET_RATIO = TARGET_WIDTH / TARGET_HEIGHT  # 1.818...
+
+    # Load image
+    img = Image.open(io.BytesIO(contents))
+
+    # Convert to RGB if needed (handles RGBA, grayscale, etc)
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+
+    source_width, source_height = img.size
+    source_ratio = source_width / source_height
+
+    # Resize to cover target (scale so one dimension matches, other exceeds)
+    if source_ratio > TARGET_RATIO:
+        # Image is wider than target - scale by height
+        new_height = TARGET_HEIGHT
+        new_width = int(source_width * (TARGET_HEIGHT / source_height))
+    else:
+        # Image is taller than target - scale by width
+        new_width = TARGET_WIDTH
+        new_height = int(source_height * (TARGET_WIDTH / source_width))
+
+    # Resize with high-quality Lanczos filter
+    img_resized = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+
+    # Center crop to exact target dimensions
+    left = (new_width - TARGET_WIDTH) // 2
+    top = (new_height - TARGET_HEIGHT) // 2
+    img_cropped = img_resized.crop((left, top, left + TARGET_WIDTH, top + TARGET_HEIGHT))
+
+    # Save as PNG (lossless)
+    image_path = UPLOAD_DIR / f"{job_id}.png"
+    img_cropped.save(image_path, 'PNG')
 
     # Update job with correct paths
     output_dir = OUTPUT_DIR / job_id
@@ -87,7 +121,8 @@ async def upload_image(file: UploadFile = File(...)):
     return {
         "job_id": job_id,
         "filename": file.filename,
-        "message": "File uploaded successfully"
+        "resized_image_url": f"/api/uploads/{job_id}.png",
+        "message": "File uploaded and resized successfully"
     }
 
 
@@ -227,6 +262,16 @@ async def get_video(job_id: str, video_path: str):
         raise HTTPException(status_code=404, detail="Video not found")
 
     return FileResponse(video_file)
+
+
+@app.get("/api/uploads/{filename}")
+async def get_uploaded_image(filename: str):
+    """Serve uploaded/resized images"""
+    image_path = UPLOAD_DIR / filename
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    return FileResponse(image_path)
 
 
 @app.get("/api/outputs/{job_id}/ply")
