@@ -577,13 +577,20 @@ def demo_multi_trajectory(args):
         "clockwise": {"traj_idx": 5, "movement_distance_range": [0.4, 0.6]},
     }
     # Generate for each trajectory independently
-    for traj, traj_dict in trajectories.items():
+    total_trajectories = len(trajectories)
+    for idx, (traj, traj_dict) in enumerate(trajectories.items()):
         args.video_save_folder = os.path.join(video_save_folder, str(traj_dict["traj_idx"]))
         args.trajectory = traj
         args.movement_distance = random.uniform(
             traj_dict["movement_distance_range"][0],
             traj_dict["movement_distance_range"][1]
             ) * args.total_movement_distance_factor
+
+        log.info(f"=== Generating trajectory {idx + 1}/{total_trajectories}: '{traj}' (index={traj_dict['traj_idx']}) ===")
+        log.info(f"    Movement distance: {args.movement_distance:.4f}")
+        log.info(f"    Seed: {args.seed}")
+        log.info(f"    Output folder: {args.video_save_folder}")
+
         demo(args)
 
 if __name__ == "__main__":
