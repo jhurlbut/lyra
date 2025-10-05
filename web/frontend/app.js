@@ -1,25 +1,25 @@
 import { initViewer, loadPLY, resetCamera } from './viewer.js';
 
-// State
-let currentJobId = null;
+// State (exposed to window for progress simulation)
+window.currentJobId = null;
 let currentFile = null;
 let eventSource = null;
 let videoCheckInterval = null;
 
-// Progress tracking
-let sdgStartTime = null;
-let processingStartTime = null;
-let latentVideoCount = 0;
-let videoCompletionTimes = [];
-const EXPECTED_TRAJECTORIES = 6;
-let progressSimulationInterval = null;
+// Progress tracking (exposed to window for progress simulation)
+window.sdgStartTime = null;
+window.processingStartTime = null;
+window.latentVideoCount = 0;
+window.videoCompletionTimes = [];
+window.EXPECTED_TRAJECTORIES = 6;
+window.progressSimulationInterval = null;
 
 // Time estimates (in minutes)
 const EST_MODEL_LOAD = 3;
 const EST_PER_TRAJECTORY = 10;
 const EST_RECONSTRUCTION = 10;
 const EST_FINALIZATION = 2;
-const EST_TOTAL = EST_MODEL_LOAD + (EST_PER_TRAJECTORY * EXPECTED_TRAJECTORIES) + EST_RECONSTRUCTION + EST_FINALIZATION; // ~75 min
+const EST_TOTAL = EST_MODEL_LOAD + (EST_PER_TRAJECTORY * window.EXPECTED_TRAJECTORIES) + EST_RECONSTRUCTION + EST_FINALIZATION; // ~75 min
 
 // DOM Elements
 const uploadArea = document.getElementById('upload-area');
@@ -183,11 +183,11 @@ function clearPreviousJob() {
     stopProgressSimulation();
 
     // Reset state variables
-    currentJobId = null;
-    sdgStartTime = null;
-    latentVideoCount = 0;
-    videoCompletionTimes = [];
-    processingStartTime = null;
+    window.currentJobId = null;
+    window.sdgStartTime = null;
+    window.latentVideoCount = 0;
+    window.videoCompletionTimes = [];
+    window.processingStartTime = null;
 
     // Clear and hide UI sections
     consoleOutput.innerHTML = '';
@@ -232,7 +232,7 @@ async function startProcessing() {
         }
 
         const uploadData = await uploadResponse.json();
-        currentJobId = uploadData.job_id;
+        window.currentJobId = uploadData.job_id;
 
         // Update preview to show resized image from server
         if (uploadData.resized_image_url) {
@@ -240,7 +240,7 @@ async function startProcessing() {
         }
 
         // Start processing
-        const processResponse = await fetch(`/api/process/${currentJobId}`, {
+        const processResponse = await fetch(`/api/process/${window.currentJobId}`, {
             method: 'POST'
         });
 
@@ -280,7 +280,7 @@ function startLogStream() {
         eventSource.close();
     }
 
-    eventSource = new EventSource(`/api/jobs/${currentJobId}/stream`);
+    eventSource = new EventSource(`/api/jobs/${window.currentJobId}/stream`);
 
     eventSource.onmessage = (event) => {
         const logLine = event.data;
@@ -345,24 +345,24 @@ function updateProgress(percent) {
 
 function startProgressSimulation() {
     // Clear any existing simulation
-    if (progressSimulationInterval) {
-        clearInterval(progressSimulationInterval);
+    if (window.progressSimulationInterval) {
+        clearInterval(window.progressSimulationInterval);
     }
 
-    progressSimulationInterval = setInterval(() => {
-        if (!processingStartTime) return;
+    window.progressSimulationInterval = setInterval(() => {
+        if (!window.processingStartTime) return;
 
-        const elapsedMinutes = (Date.now() - processingStartTime) / (1000 * 60);
+        const elapsedMinutes = (Date.now() - window.processingStartTime) / (1000 * 60);
         let simulatedProgress = 0;
 
-        if (latentVideoCount === 0) {
+        if (window.latentVideoCount === 0) {
             // Model loading phase (0-3 min → 0-5%)
             simulatedProgress = Math.min(5, (elapsedMinutes / EST_MODEL_LOAD) * 5);
         } else {
             // After first video, use time-based estimation
-            const sdgElapsed = (Date.now() - sdgStartTime) / (1000 * 60);
-            const avgPerVideo = latentVideoCount > 0 ? sdgElapsed / latentVideoCount : EST_PER_TRAJECTORY;
-            const estimatedSDGTotal = avgPerVideo * EXPECTED_TRAJECTORIES;
+            const sdgElapsed = (Date.now() - window.sdgStartTime) / (1000 * 60);
+            const avgPerVideo = window.latentVideoCount > 0 ? sdgElapsed / window.latentVideoCount : EST_PER_TRAJECTORY;
+            const estimatedSDGTotal = avgPerVideo * window.EXPECTED_TRAJECTORIES;
             const sdgProgress = Math.min(100, (sdgElapsed / estimatedSDGTotal) * 100);
 
             // Map to 5-70% range (SDG phase)
@@ -381,9 +381,9 @@ function startProgressSimulation() {
 }
 
 function stopProgressSimulation() {
-    if (progressSimulationInterval) {
-        clearInterval(progressSimulationInterval);
-        progressSimulationInterval = null;
+    if (window.progressSimulationInterval) {
+        clearInterval(window.progressSimulationInterval);
+        window.progressSimulationInterval = null;
     }
 }
 
@@ -399,11 +399,11 @@ function toggleConsole() {
 
 function startVideoCheck() {
     // Initialize timing
-    if (!sdgStartTime) {
-        sdgStartTime = Date.now();
+    if (!window.sdgStartTime) {
+        window.sdgStartTime = Date.now();
     }
-    if (!processingStartTime) {
-        processingStartTime = Date.now();
+    if (!window.processingStartTime) {
+        window.processingStartTime = Date.now();
     }
 
     // Start progress simulation (updates every 5 seconds)
@@ -412,14 +412,14 @@ function startVideoCheck() {
     videoCheckInterval = setInterval(async () => {
         try {
             // Check for videos
-            const videoResponse = await fetch(`/api/outputs/${currentJobId}/videos`);
+            const videoResponse = await fetch(`/api/outputs/${window.currentJobId}/videos`);
             if (videoResponse.ok) {
                 const videoData = await videoResponse.json();
                 displayVideos(videoData.videos);
             }
 
             // Check job status and progress
-            const jobResponse = await fetch(`/api/jobs/${currentJobId}`);
+            const jobResponse = await fetch(`/api/jobs/${window.currentJobId}`);
             if (jobResponse.ok) {
                 const job = await jobResponse.json();
 
@@ -427,37 +427,37 @@ function startVideoCheck() {
                 const newLatentCount = job.video_files ?
                     job.video_files.filter(path => path.includes('latents/')).length : 0;
 
-                if (newLatentCount !== latentVideoCount) {
+                if (newLatentCount !== window.latentVideoCount) {
                     // New video detected - record completion time
                     const now = Date.now();
-                    videoCompletionTimes.push(now);
-                    latentVideoCount = newLatentCount;
+                    window.videoCompletionTimes.push(now);
+                    window.latentVideoCount = newLatentCount;
                 }
 
                 // Update "Latent Gen x/6" label if in SDG stage
                 if (job.stage === 'sdg') {
                     const stageLabel = document.querySelector('#stage-sdg .stage-label');
                     if (stageLabel) {
-                        stageLabel.textContent = `Latent Gen ${latentVideoCount}/${EXPECTED_TRAJECTORIES}`;
+                        stageLabel.textContent = `Latent Gen ${window.latentVideoCount}/${window.EXPECTED_TRAJECTORIES}`;
                     }
 
                     // Calculate adaptive time-based progress estimation
-                    if (latentVideoCount > 0 && videoCompletionTimes.length > 0) {
+                    if (window.latentVideoCount > 0 && window.videoCompletionTimes.length > 0) {
                         const now = Date.now();
-                        const elapsedMinutes = (now - sdgStartTime) / (1000 * 60);
-                        const avgMinutesPerVideo = elapsedMinutes / latentVideoCount;
-                        const remainingVideos = EXPECTED_TRAJECTORIES - latentVideoCount;
+                        const elapsedMinutes = (now - window.sdgStartTime) / (1000 * 60);
+                        const avgMinutesPerVideo = elapsedMinutes / window.latentVideoCount;
+                        const remainingVideos = window.EXPECTED_TRAJECTORIES - window.latentVideoCount;
                         const estimatedRemainingMinutes = remainingVideos * avgMinutesPerVideo;
 
                         // Total pipeline estimate: SDG + reconstruction (10 min) + final (10 min)
-                        const totalEstimatedMinutes = (EXPECTED_TRAJECTORIES * avgMinutesPerVideo) + 10 + 10;
+                        const totalEstimatedMinutes = (window.EXPECTED_TRAJECTORIES * avgMinutesPerVideo) + 10 + 10;
                         const estimatedProgress = Math.min(95, (elapsedMinutes / totalEstimatedMinutes) * 100);
 
                         // Blend estimated progress with backend progress (favor whichever is higher)
                         const blendedProgress = Math.max(job.progress || 0, estimatedProgress);
                         updateProgress(Math.round(blendedProgress));
 
-                        console.log(`Progress estimate: ${latentVideoCount}/${EXPECTED_TRAJECTORIES} videos, ` +
+                        console.log(`Progress estimate: ${window.latentVideoCount}/${window.EXPECTED_TRAJECTORIES} videos, ` +
                                     `${avgMinutesPerVideo.toFixed(1)} min/video avg, ` +
                                     `~${estimatedRemainingMinutes.toFixed(0)} min remaining`);
                     } else {
@@ -501,7 +501,7 @@ function displayVideos(videos) {
         videoCard.className = 'video-card';
 
         const video = document.createElement('video');
-        video.src = `/api/outputs/${currentJobId}/videos/${videoPath}`;
+        video.src = `/api/outputs/${window.currentJobId}/videos/${videoPath}`;
         video.controls = true;
         video.loop = true;
 
@@ -568,7 +568,7 @@ async function onPipelineComplete() {
 
     // Load final videos
     try {
-        const response = await fetch(`/api/outputs/${currentJobId}/videos`);
+        const response = await fetch(`/api/outputs/${window.currentJobId}/videos`);
         if (response.ok) {
             const data = await response.json();
             displayVideos(data.videos);
@@ -618,7 +618,7 @@ async function loadPLYFile() {
         viewerContainer.style.position = 'relative';
         viewerContainer.appendChild(loadingIndicator);
 
-        const response = await fetch(`/api/outputs/${currentJobId}/ply`);
+        const response = await fetch(`/api/outputs/${window.currentJobId}/ply`);
         if (response.ok) {
             const blob = await response.blob();
             const url = URL.createObjectURL(blob);
@@ -652,17 +652,17 @@ async function loadPLYFile() {
 }
 
 async function downloadPLY() {
-    if (!currentJobId) return;
+    if (!window.currentJobId) return;
 
     const link = document.createElement('a');
-    link.href = `/api/outputs/${currentJobId}/ply`;
-    link.download = `gaussians_${currentJobId}.ply`;
+    link.href = `/api/outputs/${window.currentJobId}/ply`;
+    link.download = `gaussians_${window.currentJobId}.ply`;
     link.click();
 }
 
 async function checkJobStatus() {
     try {
-        const response = await fetch(`/api/jobs/${currentJobId}`);
+        const response = await fetch(`/api/jobs/${window.currentJobId}`);
         if (response.ok) {
             const job = await response.json();
 
@@ -748,7 +748,7 @@ function displayJobHistory(jobs) {
 }
 
 async function loadJob(jobId) {
-    currentJobId = jobId;
+    window.currentJobId = jobId;
 
     try {
         const response = await fetch(`/api/jobs/${jobId}`);
