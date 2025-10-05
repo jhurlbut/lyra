@@ -516,11 +516,10 @@ function displayVideos(videos) {
         const latentMatch = videoPath.match(/latents\/(\d+)\/rgb\//);
         if (latentMatch || videoPath.includes('latents/rgb/')) {
             const trajectoryNum = latentMatch ? parseInt(latentMatch[1]) : 0;
-            if (trajectoryNum === 0) {
-                friendlyName = '🎥 Generated Camera Trajectory (Latent)';
-            } else {
-                friendlyName = `🎥 Generated Camera Trajectory (Latent) ${trajectoryNum + 1}`;
-            }
+            // Map trajectory index to name (matches gen3c_single_image_sdg.py:571-578)
+            const trajectoryNames = ['Left', 'Right', 'Up', 'Zoom Out', 'Zoom In', 'Clockwise'];
+            const trajectoryName = trajectoryNames[trajectoryNum] || 'Unknown';
+            friendlyName = `Generated ${trajectoryName} Video`;
         }
         // Map technical filenames to user-friendly descriptions for reconstruction videos
         else if (filename.includes('rgb_wave')) {
