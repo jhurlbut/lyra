@@ -359,11 +359,6 @@ export async function loadPLY(url, onProgress = null) {
         controls.target.set(0, scaledHeight / 2, 0);
         controls.update();
 
-        // Attach transform controls to the mesh
-        if (transformControls) {
-            transformControls.attach(splatMesh);
-        }
-
         // Make viewer section visible
         const viewerSection = document.getElementById('viewer-section');
         if (viewerSection) {
