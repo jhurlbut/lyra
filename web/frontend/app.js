@@ -229,8 +229,9 @@ async function startProcessing() {
         const uploadData = await uploadResponse.json();
         window.currentJobId = uploadData.job_id;
 
-        // Clear displayed videos set for new job
+        // Clear displayed videos set and video grid for new job
         displayedVideos.clear();
+        videosGrid.innerHTML = '';
 
         // Start processing
         const processResponse = await fetch(`/api/process/${window.currentJobId}`, {
@@ -794,8 +795,9 @@ function displayJobHistory(jobs) {
 async function loadJob(jobId) {
     window.currentJobId = jobId;
 
-    // Clear displayed videos set for loaded job
+    // Clear displayed videos set and video grid for loaded job
     displayedVideos.clear();
+    videosGrid.innerHTML = '';
 
     try {
         const response = await fetch(`/api/jobs/${jobId}`);
