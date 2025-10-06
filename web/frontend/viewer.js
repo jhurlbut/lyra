@@ -334,14 +334,14 @@ export async function loadPLY(url, onProgress = null) {
         // Apply additional scaling on top of the 0.5 coordinate transform scale
         splatMesh.scale.setScalar(0.5 * scaleFactor);
 
-        // Position the mesh at origin
-        splatMesh.position.set(0, 0, 0);
+        // Position the mesh at (0, 0, 1)
+        splatMesh.position.set(0, 0, 1);
 
         console.log(`Scaled by ${0.5 * scaleFactor} (0.5 coord transform * ${scaleFactor} fit) to target size of ${targetSize} units`);
-        console.log(`Positioned at (0, 0, 0)`);
+        console.log(`Positioned at (0, 0, 1)`);
 
-        // Position camera at (0, 0, 1)
-        camera.position.set(0, 0, 1);
+        // Position camera at (0, 0, 0.25)
+        camera.position.set(0, 0, 0.25);
         camera.lookAt(0, 0, 0);  // Look at origin
 
         // Update controls target to origin
