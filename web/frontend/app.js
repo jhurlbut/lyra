@@ -492,17 +492,10 @@ let currentlyLoadedVideo = null;
 function displayVideos(videos) {
     if (videos.length === 0) return;
 
-    // Filter to only trajectory videos (latents/*/rgb/*.mp4)
-    const trajectoryVideos = videos.filter(videoPath =>
-        videoPath.includes('latents/') && videoPath.includes('/rgb/')
-    );
-
-    if (trajectoryVideos.length === 0) return;
-
     videosSection.style.display = 'block';
     clearVideoGrid();
 
-    trajectoryVideos.forEach(videoPath => {
+    videos.forEach(videoPath => {
         const videoCard = document.createElement('div');
         videoCard.className = 'video-card';
         videoCard.style.position = 'relative';
@@ -540,7 +533,7 @@ function displayVideos(videos) {
 
         const label = document.createElement('div');
         label.className = 'video-label';
-        label.textContent = getTrajectoryName(videoPath);
+        label.textContent = getVideoFriendlyName(videoPath);
 
         videoCard.appendChild(placeholder);
         videoCard.appendChild(label);
@@ -553,7 +546,10 @@ function displayVideos(videos) {
     });
 }
 
-function getTrajectoryName(videoPath) {
+function getVideoFriendlyName(videoPath) {
+    const filename = videoPath.split('/').pop();
+
+    // Check if this is a trajectory video (from SDG phase)
     const latentMatch = videoPath.match(/latents\/(\d+)\/rgb\//);
     if (latentMatch) {
         const trajectoryNum = parseInt(latentMatch[1]);
@@ -561,7 +557,21 @@ function getTrajectoryName(videoPath) {
         const trajectoryName = trajectoryNames[trajectoryNum] || 'Unknown';
         return `${trajectoryName} Trajectory`;
     }
-    return 'Trajectory Video';
+
+    // Map technical filenames to user-friendly descriptions for reconstruction videos
+    if (filename.includes('rgb_wave')) {
+        return '🌊 Gaussian Splat Wave Animation';
+    } else if (filename.includes('rgb_0_view_idx')) {
+        return 'Splat Preview Rendering';
+    } else if (filename === 'rgb_0.mp4') {
+        return '🎬 Primary Reconstruction View';
+    } else if (filename === 'sample_0.mp4') {
+        return 'Output Vis: Splat / Latent / Depth';
+    } else if (filename.includes('depth')) {
+        return '🏔️ Depth Map Visualization';
+    }
+
+    return filename;
 }
 
 function loadAndPlayVideo(videoPath, videoCard, placeholder) {
