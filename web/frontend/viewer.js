@@ -52,8 +52,8 @@ export function initViewer() {
     controls.dampingFactor = 0.05;
     controls.screenSpacePanning = false;
     // Lock camera distance (disable zoom/pan)
-    controls.minDistance = 0.4;
-    controls.maxDistance = 0.4;
+    controls.minDistance = 0.6;
+    controls.maxDistance = 0.6;
     // Limit rotation to SDG trajectory angular bounds
     // Horizontal: ±15° (narrower range)
     controls.minAzimuthAngle = -Math.PI / 12;  // -15°
