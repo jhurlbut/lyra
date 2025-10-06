@@ -613,34 +613,47 @@ async function loadPLYFile() {
         viewerContainer.appendChild(loadingIndicator);
 
         const response = await fetch(`/api/outputs/${window.currentJobId}/ply`);
-        if (response.ok) {
-            const blob = await response.blob();
-            const url = URL.createObjectURL(blob);
-
-            // Progress callback
-            const onProgress = (percentage) => {
-                const progressText = document.getElementById('ply-progress-text');
-                if (progressText) {
-                    progressText.textContent = `${percentage}%`;
-                }
-            };
-
-            await loadPLY(url, onProgress);
-
-            // Remove loading indicator
-            if (loadingIndicator && loadingIndicator.parentNode) {
-                loadingIndicator.remove();
-            }
-
-            // Scroll to viewer
-            viewerSection.scrollIntoView({ behavior: 'smooth' });
+        if (!response.ok) {
+            throw new Error(`PLY file not found: ${response.status} ${response.statusText}`);
         }
-    } catch (error) {
-        console.error('Error loading PLY:', error);
-        // Remove loading indicator on error
-        const loadingIndicator = document.getElementById('ply-loading-indicator');
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+
+        // Progress callback
+        const onProgress = (percentage) => {
+            const progressText = document.getElementById('ply-progress-text');
+            if (progressText) {
+                progressText.textContent = `${percentage}%`;
+            }
+        };
+
+        console.log('Starting PLY load...');
+        await loadPLY(url, onProgress);
+        console.log('PLY load complete');
+
+        // Remove loading indicator
         if (loadingIndicator && loadingIndicator.parentNode) {
             loadingIndicator.remove();
+        }
+
+        // Scroll to viewer
+        viewerSection.scrollIntoView({ behavior: 'smooth' });
+    } catch (error) {
+        console.error('Error loading PLY:', error);
+        // Show error message in loading indicator
+        const loadingIndicator = document.getElementById('ply-loading-indicator');
+        if (loadingIndicator) {
+            loadingIndicator.innerHTML = `
+                <div style="color: #ff6b6b;">❌ Error Loading PLY</div>
+                <div style="font-size: 14px; margin-top: 10px;">${error.message}</div>
+            `;
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (loadingIndicator && loadingIndicator.parentNode) {
+                    loadingIndicator.remove();
+                }
+            }, 5000);
         }
     }
 }
