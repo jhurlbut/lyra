@@ -43,7 +43,6 @@ const videosSection = document.getElementById('videos-section');
 const videosGrid = document.getElementById('videos-grid');
 
 const viewerSection = document.getElementById('viewer-section');
-const resetCameraBtn = document.getElementById('reset-camera');
 const downloadPlyBtn = document.getElementById('download-ply');
 
 const errorModal = document.getElementById('error-modal');
@@ -94,37 +93,7 @@ function initializeUpload() {
     toggleConsoleBtn.addEventListener('click', toggleConsole);
     clearConsoleBtn.addEventListener('click', () => consoleOutput.innerHTML = '');
 
-    resetCameraBtn.addEventListener('click', resetCamera);
     downloadPlyBtn.addEventListener('click', downloadPLY);
-
-    // Reference point event handlers
-    document.getElementById('set-origin-point').addEventListener('click', () => {
-        if (window.setReferencePointMode) {
-            window.setReferencePointMode(true);
-            // Update button to show active state
-            document.getElementById('set-origin-point').style.background = '#3b82f6';
-            document.getElementById('set-origin-point').style.color = 'white';
-            alert('Click on the splat where you want to set the new origin point.');
-        }
-    });
-
-    document.getElementById('apply-origin').addEventListener('click', () => {
-        if (window.applyReferencePoint) {
-            window.applyReferencePoint();
-            // Reset button style
-            document.getElementById('set-origin-point').style.background = '';
-            document.getElementById('set-origin-point').style.color = '';
-        }
-    });
-
-    document.getElementById('clear-origin').addEventListener('click', () => {
-        if (window.clearReferencePoint) {
-            window.clearReferencePoint();
-            // Reset button style
-            document.getElementById('set-origin-point').style.background = '';
-            document.getElementById('set-origin-point').style.color = '';
-        }
-    });
 
     closeErrorBtn.addEventListener('click', () => errorModal.style.display = 'none');
 }
