@@ -637,6 +637,11 @@ async function loadPLYFile() {
             }
         };
 
+        // Pause all videos to improve PLY loading performance
+        document.querySelectorAll('video').forEach(video => {
+            video.pause();
+        });
+
         console.log('Starting PLY load...');
         await loadPLY(url, onProgress);
         console.log('PLY load complete');
