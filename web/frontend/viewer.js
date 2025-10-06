@@ -31,9 +31,9 @@ export function initViewer() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a1a);
 
-    // Camera
+    // Camera (narrower FOV for less wide-angle distortion)
     camera = new THREE.PerspectiveCamera(
-        75,
+        45,
         width / height,
         0.1,
         1000
@@ -62,14 +62,6 @@ export function initViewer() {
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
     directionalLight.position.set(5, 5, 5);
     scene.add(directionalLight);
-
-    // Grid helper
-    const gridHelper = new THREE.GridHelper(10, 10, 0x444444, 0x222222);
-    scene.add(gridHelper);
-
-    // Axes helper
-    const axesHelper = new THREE.AxesHelper(5);
-    scene.add(axesHelper);
 
     // Handle window resize
     window.addEventListener('resize', onWindowResize);
@@ -340,8 +332,8 @@ export async function loadPLY(url, onProgress = null) {
         console.log(`Scaled by ${0.5 * scaleFactor} (0.5 coord transform * ${scaleFactor} fit) to target size of ${targetSize} units`);
         console.log(`Positioned at (0, 0, 1)`);
 
-        // Position camera at (0, 0, 0.25)
-        camera.position.set(0, 0, 0.25);
+        // Position camera at (0, 0, 0.1)
+        camera.position.set(0, 0, 0.1);
         camera.lookAt(0, 0, 0);  // Look at origin
 
         // Update controls target to origin
