@@ -229,9 +229,11 @@ async function startProcessing() {
         const uploadData = await uploadResponse.json();
         window.currentJobId = uploadData.job_id;
 
-        // Clear displayed videos set and video grid for new job
-        displayedVideos.clear();
-        videosGrid.innerHTML = '';
+        // Clear video arrays and grid for new job
+        trajectoryVideos.length = 0;
+        splatVideos.length = 0;
+        currentVideoMode = 'trajectory';
+        clearVideoGrid();
 
         // Start processing
         const processResponse = await fetch(`/api/process/${window.currentJobId}`, {
@@ -487,20 +489,75 @@ function startVideoCheck() {
     }, 5000); // Check every 5 seconds
 }
 
-// Track which videos are already displayed
-const displayedVideos = new Set();
+// Track video categories
+const trajectoryVideos = [];
+const splatVideos = [];
+let currentVideoMode = 'trajectory'; // 'trajectory' or 'splat'
+
+// Add event listener for single video playback at module level
+function setupSingleVideoPlayback() {
+    videosGrid.addEventListener('play', (event) => {
+        if (event.target.tagName === 'VIDEO') {
+            // Pause all other videos
+            document.querySelectorAll('video').forEach(video => {
+                if (video !== event.target) {
+                    video.pause();
+                }
+            });
+        }
+    }, true);
+}
+
+// Call setup on page load
+setupSingleVideoPlayback();
+
+function categorizeVideos(videos) {
+    trajectoryVideos.length = 0;
+    splatVideos.length = 0;
+
+    videos.forEach(videoPath => {
+        // Check if this is a trajectory video (from SDG phase)
+        if (videoPath.includes('latents/') && videoPath.includes('/rgb/')) {
+            trajectoryVideos.push(videoPath);
+        } else {
+            // Everything else is a splat video (reconstruction outputs)
+            splatVideos.push(videoPath);
+        }
+    });
+}
 
 function displayVideos(videos) {
     if (videos.length === 0) return;
 
+    // Categorize videos
+    categorizeVideos(videos);
+
+    // Show the toggle controls if we have both types
+    const toggleControls = document.getElementById('video-toggle-controls');
+    if (trajectoryVideos.length > 0 && splatVideos.length > 0) {
+        toggleControls.style.display = 'block';
+    }
+
     videosSection.style.display = 'block';
 
-    videos.forEach(videoPath => {
-        // Skip if video already displayed
-        if (displayedVideos.has(videoPath)) {
-            return;
-        }
-        displayedVideos.add(videoPath);
+    // Display the current mode
+    renderCurrentVideoMode();
+}
+
+function renderCurrentVideoMode() {
+    // Clear and unload existing videos from memory
+    const existingVideos = videosGrid.querySelectorAll('video');
+    existingVideos.forEach(video => {
+        video.pause();
+        video.src = ''; // Unload video from memory
+        video.load(); // Force browser to release resources
+    });
+    videosGrid.innerHTML = '';
+
+    // Determine which videos to show
+    const videosToShow = currentVideoMode === 'trajectory' ? trajectoryVideos : splatVideos;
+
+    videosToShow.forEach(videoPath => {
         const videoCard = document.createElement('div');
         videoCard.className = 'video-card';
 
@@ -508,55 +565,93 @@ function displayVideos(videos) {
         video.src = `/api/outputs/${window.currentJobId}/videos/${videoPath}`;
         video.controls = true;
         video.loop = true;
+        video.preload = 'metadata'; // Only load metadata, not full video
 
         const label = document.createElement('div');
         label.className = 'video-label';
-        
-        // Create user-friendly labels based on filename and path
-        const filename = videoPath.split('/').pop();
-        let friendlyName = filename;
-        
-        // Check if this is a latent video (from SDG phase)
-        const latentMatch = videoPath.match(/latents\/(\d+)\/rgb\//);
-        if (latentMatch || videoPath.includes('latents/rgb/')) {
-            const trajectoryNum = latentMatch ? parseInt(latentMatch[1]) : 0;
-            // Map trajectory index to name (matches gen3c_single_image_sdg.py:571-578)
-            const trajectoryNames = ['Left', 'Right', 'Up', 'Zoom Out', 'Zoom In', 'Clockwise'];
-            const trajectoryName = trajectoryNames[trajectoryNum] || 'Unknown';
-            friendlyName = `Generated ${trajectoryName} Video`;
-        }
-        // Map technical filenames to user-friendly descriptions for reconstruction videos
-        else if (filename.includes('rgb_wave')) {
-            friendlyName = '🌊 Gaussian Splat Wave Animation';
-        } else if (filename.includes('rgb_0_view_idx')) {
-            friendlyName = 'Splat Preview Rendering';
-        } else if (filename === 'rgb_0.mp4') {
-            friendlyName = '🎬 Primary Reconstruction View';
-        } else if (filename === 'sample_0.mp4') {
-            friendlyName = 'output vis: splat / latent / depth';
-        } else if (filename.includes('left')) {
-            friendlyName = '⬅️ Left Trajectory Video';
-        } else if (filename.includes('right')) {
-            friendlyName = '➡️ Right Trajectory Video';  
-        } else if (filename.includes('up')) {
-            friendlyName = '⬆️ Upward Trajectory Video';
-        } else if (filename.includes('zoom_in')) {
-            friendlyName = '🔍 Zoom In Trajectory';
-        } else if (filename.includes('zoom_out')) {
-            friendlyName = '🔎 Zoom Out Trajectory';
-        } else if (filename.includes('clockwise')) {
-            friendlyName = '🔄 Clockwise Rotation Video';
-        } else if (filename.includes('depth')) {
-            friendlyName = '🏔️ Depth Map Visualization';
-        }
-        
-        label.textContent = friendlyName;
+        label.textContent = getVideoFriendlyName(videoPath);
 
         videoCard.appendChild(video);
         videoCard.appendChild(label);
         videosGrid.appendChild(videoCard);
     });
+
+    // Update button states
+    const trajectoryBtn = document.getElementById('show-trajectory-videos');
+    const splatBtn = document.getElementById('show-splat-videos');
+    if (currentVideoMode === 'trajectory') {
+        trajectoryBtn.className = 'btn-primary';
+        splatBtn.className = 'btn-secondary';
+    } else {
+        trajectoryBtn.className = 'btn-secondary';
+        splatBtn.className = 'btn-primary';
+    }
 }
+
+function getVideoFriendlyName(videoPath) {
+    const filename = videoPath.split('/').pop();
+
+    // Check if this is a latent video (from SDG phase)
+    const latentMatch = videoPath.match(/latents\/(\d+)\/rgb\//);
+    if (latentMatch || videoPath.includes('latents/rgb/')) {
+        const trajectoryNum = latentMatch ? parseInt(latentMatch[1]) : 0;
+        // Map trajectory index to name (matches gen3c_single_image_sdg.py:571-578)
+        const trajectoryNames = ['Left', 'Right', 'Up', 'Zoom Out', 'Zoom In', 'Clockwise'];
+        const trajectoryName = trajectoryNames[trajectoryNum] || 'Unknown';
+        return `Generated ${trajectoryName} Video`;
+    }
+    // Map technical filenames to user-friendly descriptions for reconstruction videos
+    else if (filename.includes('rgb_wave')) {
+        return '🌊 Gaussian Splat Wave Animation';
+    } else if (filename.includes('rgb_0_view_idx')) {
+        return 'Splat Preview Rendering';
+    } else if (filename === 'rgb_0.mp4') {
+        return '🎬 Primary Reconstruction View';
+    } else if (filename === 'sample_0.mp4') {
+        return 'output vis: splat / latent / depth';
+    } else if (filename.includes('left')) {
+        return '⬅️ Left Trajectory Video';
+    } else if (filename.includes('right')) {
+        return '➡️ Right Trajectory Video';
+    } else if (filename.includes('up')) {
+        return '⬆️ Upward Trajectory Video';
+    } else if (filename.includes('zoom_in')) {
+        return '🔍 Zoom In Trajectory';
+    } else if (filename.includes('zoom_out')) {
+        return '🔎 Zoom Out Trajectory';
+    } else if (filename.includes('clockwise')) {
+        return '🔄 Clockwise Rotation Video';
+    } else if (filename.includes('depth')) {
+        return '🏔️ Depth Map Visualization';
+    }
+    return filename;
+}
+
+// Helper function to clear and unload all videos
+function clearVideoGrid() {
+    const existingVideos = videosGrid.querySelectorAll('video');
+    existingVideos.forEach(video => {
+        video.pause();
+        video.src = '';
+        video.load();
+    });
+    videosGrid.innerHTML = '';
+    const toggleControls = document.getElementById('video-toggle-controls');
+    if (toggleControls) {
+        toggleControls.style.display = 'none';
+    }
+}
+
+// Setup toggle button event listeners
+document.getElementById('show-trajectory-videos').addEventListener('click', () => {
+    currentVideoMode = 'trajectory';
+    renderCurrentVideoMode();
+});
+
+document.getElementById('show-splat-videos').addEventListener('click', () => {
+    currentVideoMode = 'splat';
+    renderCurrentVideoMode();
+});
 
 async function onPipelineComplete() {
     // Stop checking for videos
@@ -800,9 +895,11 @@ function displayJobHistory(jobs) {
 async function loadJob(jobId) {
     window.currentJobId = jobId;
 
-    // Clear displayed videos set and video grid for loaded job
-    displayedVideos.clear();
-    videosGrid.innerHTML = '';
+    // Clear video arrays and grid for loaded job
+    trajectoryVideos.length = 0;
+    splatVideos.length = 0;
+    currentVideoMode = 'trajectory';
+    clearVideoGrid();
 
     try {
         const response = await fetch(`/api/jobs/${jobId}`);
