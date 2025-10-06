@@ -339,8 +339,8 @@ export async function loadPLY(url, onProgress = null) {
         console.log(`Scaled by ${0.5 * scaleFactor} (0.5 coord transform * ${scaleFactor} fit) to target size of ${targetSize} units`);
         console.log(`Positioned at (0, 0, 1)`);
 
-        // Position camera at (0, 0, 0.1)
-        camera.position.set(0, 0, 0.1);
+        // Position camera at (0, 0, 0.7)
+        camera.position.set(0, 0, 0.7);
         camera.lookAt(0, 0, 0);  // Look at origin
 
         // Update controls target to origin
