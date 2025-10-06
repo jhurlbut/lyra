@@ -891,6 +891,20 @@ async function loadJob(jobId) {
         if (response.ok) {
             const job = await response.json();
 
+            // Load and display the original uploaded image
+            if (job.image_path) {
+                // Extract filename from path (e.g., "/path/to/{job_id}.png" -> "{job_id}.png")
+                const filename = job.image_path.split('/').pop();
+
+                // Set preview image source
+                previewImage.src = `/api/uploads/${filename}`;
+
+                // Show preview container, hide upload area
+                previewContainer.style.display = 'block';
+                uploadArea.style.display = 'none';
+                startBtn.style.display = 'none';
+            }
+
             // Show progress section
             showProcessingUI();
 
