@@ -52,8 +52,8 @@ export function initViewer() {
     camera = new THREE.PerspectiveCamera(
         cameraSettings.fov,
         width / height,
-        0.1,
-        1000
+        0.01,  // Near clipping plane (lowered from 0.1 to see closer objects)
+        1000   // Far clipping plane
     );
     camera.position.set(0, 0, 5);
 
