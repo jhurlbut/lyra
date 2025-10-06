@@ -334,29 +334,19 @@ export async function loadPLY(url, onProgress = null) {
         // Apply additional scaling on top of the 0.5 coordinate transform scale
         splatMesh.scale.setScalar(0.5 * scaleFactor);
 
-        // Position the mesh so its bottom (min Y) is at Y=0 and back (max Z) is at Z=0
-        // First center it at origin
-        splatMesh.position.sub(center);
-        // Apply the -1 Z offset from coordinate transform
-        splatMesh.position.z += -1;
-        // Then shift it up by half the scaled height so bottom is at 0
-        const scaledHeight = size.y * scaleFactor;
-        splatMesh.position.y = scaledHeight / 2;
-        // And shift it forward by half the scaled depth so back is at 0
-        const scaledDepth = size.z * scaleFactor;
-        splatMesh.position.z -= scaledDepth / 2;
+        // Position the mesh at (0, 0, -1.63)
+        splatMesh.position.set(0, 0, -1.63);
 
         console.log(`Scaled by ${0.5 * scaleFactor} (0.5 coord transform * ${scaleFactor} fit) to target size of ${targetSize} units`);
-        console.log(`Positioned with bottom at Y=0, back at Z=0`);
-        console.log(`Shifted up by ${scaledHeight / 2}, forward by ${scaledDepth / 2}`);
+        console.log(`Positioned at (0, 0, -1.63)`);
 
-        // Position camera for typical reconstruction viewpoint (closer and better angle)
-        const viewDistance = targetSize * 2.0;  // Closer than previous 2.5x
-        camera.position.set(0, scaledHeight * 0.3, viewDistance);
-        camera.lookAt(0, scaledHeight * 0.4, 0);  // Look at mid-height
+        // Position camera for typical reconstruction viewpoint
+        const viewDistance = targetSize * 2.0;
+        camera.position.set(0, 2, viewDistance);
+        camera.lookAt(0, 0, 0);  // Look at origin
 
-        // Update controls target to center of model
-        controls.target.set(0, scaledHeight / 2, 0);
+        // Update controls target to origin
+        controls.target.set(0, 0, 0);
         controls.update();
 
         // Make viewer section visible
