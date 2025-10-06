@@ -1,4 +1,4 @@
-import { initViewer, loadPLY, resetCamera, toggleCameraLimits } from './viewer.js';
+import { initViewer, loadPLY, resetCamera, toggleCameraLimits, initDebugPanel } from './viewer.js';
 
 // State (exposed to window for progress simulation)
 window.currentJobId = null;
@@ -56,6 +56,7 @@ const jobsList = document.getElementById('jobs-list');
 document.addEventListener('DOMContentLoaded', () => {
     initializeUpload();
     initViewer();  // Fixed: should be initViewer from viewer.js
+    initDebugPanel();  // Initialize debug panel controls
     loadJobHistory();
 });
 

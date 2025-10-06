@@ -16,6 +16,20 @@ let referencePointIndicator = null;
 // Camera limits toggle state
 let cameraLimitsEnabled = true;
 
+// Configurable camera settings (adjusted for 2x trajectory movement)
+let cameraSettings = {
+    fov: 55,                    // Field of view (was 45° for 1x)
+    distance: 1.5,              // Camera distance (was 1.0 for 1x)
+    cameraZ: 1.5,               // Camera Z position (was 1.0 for 1x)
+    minAzimuth: -40,            // Min horizontal rotation in degrees (was -20° for 1x)
+    maxAzimuth: 10,             // Max horizontal rotation in degrees (was +5° for 1x)
+    minPolar: 60,               // Min vertical angle in degrees (was ~75° for 1x)
+    maxPolar: 120,              // Max vertical angle in degrees (was ~105° for 1x)
+    splatX: 0,                  // Splat X position
+    splatY: 0,                  // Splat Y position
+    splatZ: 1.5                 // Splat Z position (was 1.0 for 1x)
+};
+
 export function initViewer() {
     const container = document.getElementById('viewer-container');
     
@@ -34,9 +48,9 @@ export function initViewer() {
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a1a);
 
-    // Camera (narrower FOV for less wide-angle distortion)
+    // Camera (FOV from settings)
     camera = new THREE.PerspectiveCamera(
-        45,
+        cameraSettings.fov,
         width / height,
         0.1,
         1000
@@ -54,16 +68,14 @@ export function initViewer() {
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.screenSpacePanning = false;
-    // Lock camera distance (disable zoom/pan)
-    controls.minDistance = 1.0;
-    controls.maxDistance = 1.0;
-    // Limit rotation to SDG trajectory angular bounds
-    // Horizontal: -20° to +5° (asymmetric range)
-    controls.minAzimuthAngle = -Math.PI / 9;   // -20°
-    controls.maxAzimuthAngle = Math.PI / 36;   // +5°
-    // Vertical: ±15° (wider range)
-    controls.minPolarAngle = Math.PI / 2 - 0.26;  // ~75°
-    controls.maxPolarAngle = Math.PI / 2 + 0.26;  // ~105°
+    // Lock camera distance (from settings)
+    controls.minDistance = cameraSettings.distance;
+    controls.maxDistance = cameraSettings.distance;
+    // Limit rotation to SDG trajectory angular bounds (from settings)
+    controls.minAzimuthAngle = cameraSettings.minAzimuth * Math.PI / 180;
+    controls.maxAzimuthAngle = cameraSettings.maxAzimuth * Math.PI / 180;
+    controls.minPolarAngle = cameraSettings.minPolar * Math.PI / 180;
+    controls.maxPolarAngle = cameraSettings.maxPolar * Math.PI / 180;
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -336,14 +348,14 @@ export async function loadPLY(url, onProgress = null) {
         // Apply additional scaling on top of the 0.5 coordinate transform scale
         splatMesh.scale.setScalar(0.5 * scaleFactor);
 
-        // Position the mesh at (0, 0, 1)
-        splatMesh.position.set(0, 0, 1);
+        // Position the mesh (from settings)
+        splatMesh.position.set(cameraSettings.splatX, cameraSettings.splatY, cameraSettings.splatZ);
 
         console.log(`Scaled by ${0.5 * scaleFactor} (0.5 coord transform * ${scaleFactor} fit) to target size of ${targetSize} units`);
-        console.log(`Positioned at (0, 0, 1)`);
+        console.log(`Positioned at (${cameraSettings.splatX}, ${cameraSettings.splatY}, ${cameraSettings.splatZ})`);
 
-        // Position camera at (0, 0, 1.0)
-        camera.position.set(0, 0, 1.0);
+        // Position camera (from settings)
+        camera.position.set(0, 0, cameraSettings.cameraZ);
         camera.lookAt(0, 0, 0);  // Look at origin
 
         // Update controls target to origin
@@ -562,4 +574,274 @@ export function disposeViewer() {
     }
 
     window.removeEventListener('resize', onWindowResize);
+}
+
+// ============================================================================
+// Debug Panel Functions
+// ============================================================================
+
+// Setter functions for camera parameters
+export function updateCameraFOV(fov) {
+    if (camera) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+    }
+    cameraSettings.fov = fov;
+}
+
+export function updateCameraDistance(distance) {
+    if (controls) {
+        controls.minDistance = distance;
+        controls.maxDistance = distance;
+    }
+    cameraSettings.distance = distance;
+}
+
+export function updateCameraZ(z) {
+    if (camera) {
+        camera.position.z = z;
+    }
+    cameraSettings.cameraZ = z;
+}
+
+export function updateMinAzimuth(degrees) {
+    if (controls) {
+        controls.minAzimuthAngle = degrees * Math.PI / 180;
+    }
+    cameraSettings.minAzimuth = degrees;
+}
+
+export function updateMaxAzimuth(degrees) {
+    if (controls) {
+        controls.maxAzimuthAngle = degrees * Math.PI / 180;
+    }
+    cameraSettings.maxAzimuth = degrees;
+}
+
+export function updateMinPolar(degrees) {
+    if (controls) {
+        controls.minPolarAngle = degrees * Math.PI / 180;
+    }
+    cameraSettings.minPolar = degrees;
+}
+
+export function updateMaxPolar(degrees) {
+    if (controls) {
+        controls.maxPolarAngle = degrees * Math.PI / 180;
+    }
+    cameraSettings.maxPolar = degrees;
+}
+
+export function updateSplatX(x) {
+    if (splatMesh) {
+        splatMesh.position.x = x;
+    }
+    cameraSettings.splatX = x;
+}
+
+export function updateSplatY(y) {
+    if (splatMesh) {
+        splatMesh.position.y = y;
+    }
+    cameraSettings.splatY = y;
+}
+
+export function updateSplatZ(z) {
+    if (splatMesh) {
+        splatMesh.position.z = z;
+    }
+    cameraSettings.splatZ = z;
+}
+
+export function resetDebugSettings() {
+    // Reset to default values for 2x movement
+    const defaults = {
+        fov: 55,
+        distance: 1.5,
+        cameraZ: 1.5,
+        minAzimuth: -40,
+        maxAzimuth: 10,
+        minPolar: 60,
+        maxPolar: 120,
+        splatX: 0,
+        splatY: 0,
+        splatZ: 1.5
+    };
+
+    updateCameraFOV(defaults.fov);
+    updateCameraDistance(defaults.distance);
+    updateCameraZ(defaults.cameraZ);
+    updateMinAzimuth(defaults.minAzimuth);
+    updateMaxAzimuth(defaults.maxAzimuth);
+    updateMinPolar(defaults.minPolar);
+    updateMaxPolar(defaults.maxPolar);
+    updateSplatX(defaults.splatX);
+    updateSplatY(defaults.splatY);
+    updateSplatZ(defaults.splatZ);
+
+    // Update UI
+    document.getElementById('fov-slider').value = defaults.fov;
+    document.getElementById('fov-value').textContent = defaults.fov;
+    document.getElementById('distance-slider').value = defaults.distance;
+    document.getElementById('distance-value').textContent = defaults.distance;
+    document.getElementById('camera-z-slider').value = defaults.cameraZ;
+    document.getElementById('camera-z-value').textContent = defaults.cameraZ;
+    document.getElementById('min-azimuth-slider').value = defaults.minAzimuth;
+    document.getElementById('min-azimuth-value').textContent = defaults.minAzimuth;
+    document.getElementById('max-azimuth-slider').value = defaults.maxAzimuth;
+    document.getElementById('max-azimuth-value').textContent = defaults.maxAzimuth;
+    document.getElementById('min-polar-slider').value = defaults.minPolar;
+    document.getElementById('min-polar-value').textContent = defaults.minPolar;
+    document.getElementById('max-polar-slider').value = defaults.maxPolar;
+    document.getElementById('max-polar-value').textContent = defaults.maxPolar;
+    document.getElementById('splat-x-slider').value = defaults.splatX;
+    document.getElementById('splat-x-value').textContent = defaults.splatX;
+    document.getElementById('splat-y-slider').value = defaults.splatY;
+    document.getElementById('splat-y-value').textContent = defaults.splatY;
+    document.getElementById('splat-z-slider').value = defaults.splatZ;
+    document.getElementById('splat-z-value').textContent = defaults.splatZ;
+}
+
+export function copyDebugSettings() {
+    const settingsText = `Camera Settings (2x movement):
+FOV: ${cameraSettings.fov}°
+Distance: ${cameraSettings.distance}
+Camera Z: ${cameraSettings.cameraZ}
+Min Azimuth: ${cameraSettings.minAzimuth}°
+Max Azimuth: ${cameraSettings.maxAzimuth}°
+Min Polar: ${cameraSettings.minPolar}°
+Max Polar: ${cameraSettings.maxPolar}°
+Splat Position: (${cameraSettings.splatX}, ${cameraSettings.splatY}, ${cameraSettings.splatZ})`;
+
+    navigator.clipboard.writeText(settingsText).then(() => {
+        alert('Settings copied to clipboard!');
+    }).catch(err => {
+        console.error('Failed to copy settings:', err);
+    });
+}
+
+// Initialize debug panel controls
+export function initDebugPanel() {
+    const debugPanel = document.getElementById('debug-panel');
+    const toggleButton = document.getElementById('toggle-debug-panel');
+
+    // Keyboard listener for 'D' key
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'd' || e.key === 'D') {
+            const isVisible = debugPanel.style.display !== 'none';
+            debugPanel.style.display = isVisible ? 'none' : 'block';
+        }
+    });
+
+    // Toggle button click
+    if (toggleButton) {
+        toggleButton.addEventListener('click', () => {
+            const isVisible = debugPanel.style.display !== 'none';
+            debugPanel.style.display = isVisible ? 'none' : 'block';
+        });
+    }
+
+    // FOV slider
+    const fovSlider = document.getElementById('fov-slider');
+    const fovValue = document.getElementById('fov-value');
+    fovSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        fovValue.textContent = value;
+        updateCameraFOV(value);
+    });
+
+    // Distance slider
+    const distanceSlider = document.getElementById('distance-slider');
+    const distanceValue = document.getElementById('distance-value');
+    distanceSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        distanceValue.textContent = value.toFixed(1);
+        updateCameraDistance(value);
+    });
+
+    // Camera Z slider
+    const cameraZSlider = document.getElementById('camera-z-slider');
+    const cameraZValue = document.getElementById('camera-z-value');
+    cameraZSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        cameraZValue.textContent = value.toFixed(1);
+        updateCameraZ(value);
+    });
+
+    // Min Azimuth slider
+    const minAzimuthSlider = document.getElementById('min-azimuth-slider');
+    const minAzimuthValue = document.getElementById('min-azimuth-value');
+    minAzimuthSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        minAzimuthValue.textContent = value;
+        updateMinAzimuth(value);
+    });
+
+    // Max Azimuth slider
+    const maxAzimuthSlider = document.getElementById('max-azimuth-slider');
+    const maxAzimuthValue = document.getElementById('max-azimuth-value');
+    maxAzimuthSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        maxAzimuthValue.textContent = value;
+        updateMaxAzimuth(value);
+    });
+
+    // Min Polar slider
+    const minPolarSlider = document.getElementById('min-polar-slider');
+    const minPolarValue = document.getElementById('min-polar-value');
+    minPolarSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        minPolarValue.textContent = value;
+        updateMinPolar(value);
+    });
+
+    // Max Polar slider
+    const maxPolarSlider = document.getElementById('max-polar-slider');
+    const maxPolarValue = document.getElementById('max-polar-value');
+    maxPolarSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        maxPolarValue.textContent = value;
+        updateMaxPolar(value);
+    });
+
+    // Splat X slider
+    const splatXSlider = document.getElementById('splat-x-slider');
+    const splatXValue = document.getElementById('splat-x-value');
+    splatXSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        splatXValue.textContent = value.toFixed(1);
+        updateSplatX(value);
+    });
+
+    // Splat Y slider
+    const splatYSlider = document.getElementById('splat-y-slider');
+    const splatYValue = document.getElementById('splat-y-value');
+    splatYSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        splatYValue.textContent = value.toFixed(1);
+        updateSplatY(value);
+    });
+
+    // Splat Z slider
+    const splatZSlider = document.getElementById('splat-z-slider');
+    const splatZValue = document.getElementById('splat-z-value');
+    splatZSlider.addEventListener('input', (e) => {
+        const value = parseFloat(e.target.value);
+        splatZValue.textContent = value.toFixed(1);
+        updateSplatZ(value);
+    });
+
+    // Reset button
+    const resetButton = document.getElementById('reset-debug');
+    if (resetButton) {
+        resetButton.addEventListener('click', resetDebugSettings);
+    }
+
+    // Copy button
+    const copyButton = document.getElementById('copy-debug');
+    if (copyButton) {
+        copyButton.addEventListener('click', copyDebugSettings);
+    }
+
+    console.log('Debug panel initialized - press D to toggle');
 }

@@ -98,10 +98,73 @@
                 <div class="viewer-controls">
                     <button id="download-ply" class="btn-primary">Download PLY</button>
                     <button id="toggle-camera-limits" class="btn-secondary">🔓 Unlock Camera</button>
+                    <button id="toggle-debug-panel" class="btn-secondary">🔧 Debug (D)</button>
                 </div>
                 <div id="viewer-container" class="viewer-container"></div>
                 <div class="viewer-instructions">
-                    <p><strong>Controls:</strong> Left-click to rotate</p>
+                    <p><strong>Controls:</strong> Left-click to rotate • Press <kbd>D</kbd> for debug panel</p>
+                </div>
+
+                <!-- Debug Panel -->
+                <div id="debug-panel" style="display: none; position: absolute; top: 80px; right: 20px; background: rgba(26, 26, 26, 0.95); border: 1px solid #444; border-radius: 8px; padding: 20px; width: 300px; max-height: 80vh; overflow-y: auto; z-index: 1000; color: #fff; font-size: 12px;">
+                    <h3 style="margin-top: 0; font-size: 14px;">Camera Debug Panel</h3>
+
+                    <div style="margin-bottom: 15px;">
+                        <strong style="display: block; margin-bottom: 10px;">Camera Settings</strong>
+                        <label style="display: block; margin-bottom: 5px;">
+                            FOV: <span id="fov-value">55</span>°
+                            <input type="range" id="fov-slider" min="30" max="90" value="55" step="1" style="width: 100%;">
+                        </label>
+                        <label style="display: block; margin-bottom: 5px;">
+                            Distance: <span id="distance-value">1.5</span>
+                            <input type="range" id="distance-slider" min="0.5" max="5.0" value="1.5" step="0.1" style="width: 100%;">
+                        </label>
+                        <label style="display: block; margin-bottom: 5px;">
+                            Camera Z: <span id="camera-z-value">1.5</span>
+                            <input type="range" id="camera-z-slider" min="-5" max="5" value="1.5" step="0.1" style="width: 100%;">
+                        </label>
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <strong style="display: block; margin-bottom: 10px;">Rotation Limits</strong>
+                        <label style="display: block; margin-bottom: 5px;">
+                            Min Azimuth: <span id="min-azimuth-value">-40</span>°
+                            <input type="range" id="min-azimuth-slider" min="-180" max="0" value="-40" step="1" style="width: 100%;">
+                        </label>
+                        <label style="display: block; margin-bottom: 5px;">
+                            Max Azimuth: <span id="max-azimuth-value">10</span>°
+                            <input type="range" id="max-azimuth-slider" min="0" max="180" value="10" step="1" style="width: 100%;">
+                        </label>
+                        <label style="display: block; margin-bottom: 5px;">
+                            Min Polar: <span id="min-polar-value">60</span>°
+                            <input type="range" id="min-polar-slider" min="0" max="90" value="60" step="1" style="width: 100%;">
+                        </label>
+                        <label style="display: block; margin-bottom: 5px;">
+                            Max Polar: <span id="max-polar-value">120</span>°
+                            <input type="range" id="max-polar-slider" min="90" max="180" value="120" step="1" style="width: 100%;">
+                        </label>
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <strong style="display: block; margin-bottom: 10px;">Splat Position</strong>
+                        <label style="display: block; margin-bottom: 5px;">
+                            X: <span id="splat-x-value">0.0</span>
+                            <input type="range" id="splat-x-slider" min="-10" max="10" value="0" step="0.1" style="width: 100%;">
+                        </label>
+                        <label style="display: block; margin-bottom: 5px;">
+                            Y: <span id="splat-y-value">0.0</span>
+                            <input type="range" id="splat-y-slider" min="-10" max="10" value="0" step="0.1" style="width: 100%;">
+                        </label>
+                        <label style="display: block; margin-bottom: 5px;">
+                            Z: <span id="splat-z-value">1.5</span>
+                            <input type="range" id="splat-z-slider" min="-10" max="10" value="1.5" step="0.1" style="width: 100%;">
+                        </label>
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <button id="reset-debug" class="btn-secondary" style="flex: 1; padding: 8px; font-size: 11px;">Reset</button>
+                        <button id="copy-debug" class="btn-primary" style="flex: 1; padding: 8px; font-size: 11px;">Copy Values</button>
+                    </div>
                 </div>
             </section>
 
