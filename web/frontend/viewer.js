@@ -1,12 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { TransformControls } from 'three/addons/controls/TransformControls.js';
 
 // Viewer state
 let scene, camera, renderer, controls;
 let splatMesh = null;
 let animationId = null;
-let transformControls = null;
 
 // Reference point system
 let raycaster = null;
@@ -78,56 +76,9 @@ export function initViewer() {
 
     // Start animation loop
     animate();
-    
-    // Initialize transform controls after everything is set up
-    initTransformControls();
-    
+
     // Initialize reference point system
     initReferencePointSystem();
-}
-
-function initTransformControls() {
-    try {
-        if (!camera || !renderer || !scene) {
-            console.error('Cannot initialize TransformControls: missing camera, renderer, or scene');
-            return;
-        }
-        
-        // Based on official Three.js examples, TransformControls might extend Object3D
-        // but in different versions or builds this can vary. Let's use a more robust approach.
-        console.log('Creating TransformControls...');
-        transformControls = new TransformControls(camera, renderer.domElement);
-        
-        // Modern Three.js TransformControls should extend Object3D, but let's handle edge cases
-        console.log('TransformControls type:', typeof transformControls);
-        console.log('TransformControls constructor:', transformControls.constructor.name);
-        
-        // Try direct addition first (this is the correct approach in most cases)
-        scene.add(transformControls);
-        console.log('TransformControls added to scene');
-        
-        // Set up event listeners
-        transformControls.addEventListener('dragging-changed', (event) => {
-            controls.enabled = !event.value;
-        });
-        
-        transformControls.addEventListener('change', () => {
-            renderer.render(scene, camera);
-        });
-        
-        // Make transformControls available globally for UI controls
-        window.transformControls = transformControls;
-        
-        console.log('TransformControls initialized successfully');
-        
-    } catch (error) {
-        console.error('Error with TransformControls:', error);
-        
-        // Fallback: Try to work without TransformControls
-        console.log('Continuing without TransformControls - manual transforms only');
-        transformControls = null;
-        window.transformControls = null;
-    }
 }
 
 function initReferencePointSystem() {
