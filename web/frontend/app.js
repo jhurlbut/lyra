@@ -234,11 +234,6 @@ async function startProcessing() {
         const uploadData = await uploadResponse.json();
         window.currentJobId = uploadData.job_id;
 
-        // Update preview to show resized image from server
-        if (uploadData.resized_image_url) {
-            previewImage.src = uploadData.resized_image_url;
-        }
-
         // Start processing
         const processResponse = await fetch(`/api/process/${window.currentJobId}`, {
             method: 'POST'
