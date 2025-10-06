@@ -66,7 +66,7 @@ export function initViewer() {
     // Controls with rotation limits matching SDG trajectory bounds
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
+    controls.dampingFactor = 0.25;  // Higher = less momentum (was 0.05)
     controls.screenSpacePanning = false;
     // Lock camera distance (from settings)
     controls.minDistance = cameraSettings.distance;
