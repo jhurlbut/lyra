@@ -19,12 +19,12 @@ let cameraLimitsEnabled = true;
 // Configurable camera settings (adjusted for 2x trajectory movement)
 let cameraSettings = {
     fov: 55,                    // Field of view (was 45° for 1x)
-    distance: 1.5,              // Camera distance (was 1.0 for 1x)
+    distance: 1.6,              // Camera distance (was 1.0 for 1x)
     cameraZ: 1.5,               // Camera Z position (was 1.0 for 1x)
     minAzimuth: -40,            // Min horizontal rotation in degrees (was -20° for 1x)
     maxAzimuth: 10,             // Max horizontal rotation in degrees (was +5° for 1x)
-    minPolar: 60,               // Min vertical angle in degrees (was ~75° for 1x)
-    maxPolar: 120,              // Max vertical angle in degrees (was ~105° for 1x)
+    minPolar: 78,               // Min vertical angle in degrees (was ~75° for 1x)
+    maxPolar: 90,               // Max vertical angle in degrees (was ~105° for 1x)
     splatX: 0,                  // Splat X position
     splatY: 0,                  // Splat Y position
     splatZ: 1.5                 // Splat Z position (was 1.0 for 1x)
@@ -657,12 +657,12 @@ export function resetDebugSettings() {
     // Reset to default values for 2x movement
     const defaults = {
         fov: 55,
-        distance: 1.5,
+        distance: 1.6,
         cameraZ: 1.5,
         minAzimuth: -40,
         maxAzimuth: 10,
-        minPolar: 60,
-        maxPolar: 120,
+        minPolar: 78,
+        maxPolar: 90,
         splatX: 0,
         splatY: 0,
         splatZ: 1.5
