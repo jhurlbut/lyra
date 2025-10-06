@@ -51,15 +51,16 @@ export function initViewer() {
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.screenSpacePanning = false;
-    controls.minDistance = 1;
-    controls.maxDistance = 100;
+    // Lock camera distance (disable zoom/pan)
+    controls.minDistance = 0.1;
+    controls.maxDistance = 0.1;
     // Limit rotation to SDG trajectory angular bounds
-    // Horizontal: ±30° based on radius_x=0.03 spiral
-    controls.minAzimuthAngle = -Math.PI / 6;  // -30°
-    controls.maxAzimuthAngle = Math.PI / 6;   // +30°
-    // Vertical: ±1.1° based on radius_y=0.02 spiral
-    controls.minPolarAngle = Math.PI / 2 - 0.02;  // ~88.9°
-    controls.maxPolarAngle = Math.PI / 2 + 0.02;  // ~91.1°
+    // Horizontal: ±15° (narrower range)
+    controls.minAzimuthAngle = -Math.PI / 12;  // -15°
+    controls.maxAzimuthAngle = Math.PI / 12;   // +15°
+    // Vertical: ±15° (wider range)
+    controls.minPolarAngle = Math.PI / 2 - 0.26;  // ~75°
+    controls.maxPolarAngle = Math.PI / 2 + 0.26;  // ~105°
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
