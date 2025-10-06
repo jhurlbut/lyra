@@ -1,4 +1,4 @@
-import { initViewer, loadPLY, resetCamera } from './viewer.js';
+import { initViewer, loadPLY, resetCamera, toggleCameraLimits } from './viewer.js';
 
 // State (exposed to window for progress simulation)
 window.currentJobId = null;
@@ -44,6 +44,7 @@ const videosGrid = document.getElementById('videos-grid');
 
 const viewerSection = document.getElementById('viewer-section');
 const downloadPlyBtn = document.getElementById('download-ply');
+const toggleCameraBtn = document.getElementById('toggle-camera-limits');
 
 const errorModal = document.getElementById('error-modal');
 const errorMessage = document.getElementById('error-message');
@@ -94,6 +95,11 @@ function initializeUpload() {
     clearConsoleBtn.addEventListener('click', () => consoleOutput.innerHTML = '');
 
     downloadPlyBtn.addEventListener('click', downloadPLY);
+
+    toggleCameraBtn.addEventListener('click', () => {
+        const isLocked = toggleCameraLimits();
+        toggleCameraBtn.textContent = isLocked ? '🔓 Unlock Camera' : '🔒 Lock Camera';
+    });
 
     closeErrorBtn.addEventListener('click', () => errorModal.style.display = 'none');
 }
@@ -382,6 +388,9 @@ function startVideoCheck() {
                 displayVideos(videoData.videos);
             }
 
+            // Refresh job history every 10 seconds during processing
+            await refreshJobHistory();
+
             // Check job status and progress
             const jobResponse = await fetch(`/api/jobs/${window.currentJobId}`);
             if (jobResponse.ok) {
@@ -665,6 +674,10 @@ async function loadJobHistory() {
     }
 }
 
+async function refreshJobHistory() {
+    await loadJobHistory();
+}
+
 function displayJobHistory(jobs) {
     if (jobs.length === 0) {
         jobsList.innerHTML = '<p class="no-jobs">No jobs yet. Upload an image to get started!</p>';
@@ -685,6 +698,9 @@ function displayJobHistory(jobs) {
         const cancelButton = job.status === 'running' ?
             `<button class="cancel-job-btn" data-job-id="${job.job_id}">Cancel</button>` : '';
 
+        const deleteButton = job.status !== 'running' ?
+            `<button class="cancel-job-btn" data-job-id="${job.job_id}" style="background: var(--error-color);">Delete</button>` : '';
+
         jobCard.innerHTML = `
             <div class="job-header">
                 <span class="job-id">${job.job_id.substring(0, 8)}</span>
@@ -695,12 +711,12 @@ function displayJobHistory(jobs) {
                 <div>Stage: ${job.stage}</div>
                 <div>Progress: ${job.progress}%</div>
             </div>
-            ${cancelButton}
+            ${cancelButton}${deleteButton}
         `;
 
         // Add cancel button handler
         const cancelBtn = jobCard.querySelector('.cancel-job-btn');
-        if (cancelBtn) {
+        if (cancelBtn && job.status === 'running') {
             cancelBtn.addEventListener('click', async (e) => {
                 e.stopPropagation(); // Prevent job card click
                 if (confirm('Cancel this job?')) {
@@ -716,6 +732,28 @@ function displayJobHistory(jobs) {
                     }
                 }
             });
+        }
+
+        // Add delete button handler
+        if (deleteButton) {
+            const deleteBtn = jobCard.querySelector('.cancel-job-btn');
+            if (deleteBtn) {
+                deleteBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation(); // Prevent job card click
+                    if (confirm('Delete this job and all its files?')) {
+                        try {
+                            const response = await fetch(`/api/jobs/${job.job_id}`, {
+                                method: 'DELETE'
+                            });
+                            if (response.ok) {
+                                refreshJobHistory();
+                            }
+                        } catch (error) {
+                            console.error('Error deleting job:', error);
+                        }
+                    }
+                });
+            }
         }
 
         jobCard.addEventListener('click', () => loadJob(job.job_id));

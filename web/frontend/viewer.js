@@ -13,6 +13,9 @@ let referencePointMode = false;
 let referencePoint = null;
 let referencePointIndicator = null;
 
+// Camera limits toggle state
+let cameraLimitsEnabled = true;
+
 export function initViewer() {
     const container = document.getElementById('viewer-container');
     
@@ -55,9 +58,9 @@ export function initViewer() {
     controls.minDistance = 1.0;
     controls.maxDistance = 1.0;
     // Limit rotation to SDG trajectory angular bounds
-    // Horizontal: ±15° (narrower range)
-    controls.minAzimuthAngle = -Math.PI / 12;  // -15°
-    controls.maxAzimuthAngle = Math.PI / 12;   // +15°
+    // Horizontal: -20° to +5° (asymmetric range)
+    controls.minAzimuthAngle = -Math.PI / 9;   // -20°
+    controls.maxAzimuthAngle = Math.PI / 36;   // +5°
     // Vertical: ±15° (wider range)
     controls.minPolarAngle = Math.PI / 2 - 0.26;  // ~75°
     controls.maxPolarAngle = Math.PI / 2 + 0.26;  // ~105°
@@ -516,6 +519,32 @@ export function resetCamera() {
         controls.target.set(0, 0, 0);
         controls.update();
     }
+}
+
+export function toggleCameraLimits() {
+    if (!controls) return;
+
+    cameraLimitsEnabled = !cameraLimitsEnabled;
+
+    if (cameraLimitsEnabled) {
+        // Enable limits - restore restricted rotation and zoom
+        controls.minDistance = 1.0;
+        controls.maxDistance = 1.0;
+        controls.minAzimuthAngle = -Math.PI / 9;   // -20°
+        controls.maxAzimuthAngle = Math.PI / 36;   // +5°
+        controls.minPolarAngle = Math.PI / 2 - 0.26;  // ~75°
+        controls.maxPolarAngle = Math.PI / 2 + 0.26;  // ~105°
+    } else {
+        // Disable limits - allow free rotation and zoom
+        controls.minDistance = 0;
+        controls.maxDistance = Infinity;
+        controls.minAzimuthAngle = -Infinity;
+        controls.maxAzimuthAngle = Infinity;
+        controls.minPolarAngle = 0;
+        controls.maxPolarAngle = Math.PI;
+    }
+
+    return cameraLimitsEnabled;
 }
 
 export function disposeViewer() {
