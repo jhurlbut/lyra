@@ -59,6 +59,26 @@ document.addEventListener('DOMContentLoaded', () => {
     loadJobHistory();
 });
 
+// Cleanup on page unload to prevent memory leaks
+window.addEventListener('beforeunload', () => {
+    // Close event source
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+    }
+
+    // Clear all intervals
+    if (videoCheckInterval) {
+        clearInterval(videoCheckInterval);
+        videoCheckInterval = null;
+    }
+
+    if (window.progressSimulationInterval) {
+        clearInterval(window.progressSimulationInterval);
+        window.progressSimulationInterval = null;
+    }
+});
+
 // Upload handling
 function initializeUpload() {
     uploadArea.addEventListener('click', () => fileInput.click());
@@ -208,6 +228,9 @@ async function startProcessing() {
 
         const uploadData = await uploadResponse.json();
         window.currentJobId = uploadData.job_id;
+
+        // Clear displayed videos set for new job
+        displayedVideos.clear();
 
         // Start processing
         const processResponse = await fetch(`/api/process/${window.currentJobId}`, {
@@ -463,13 +486,20 @@ function startVideoCheck() {
     }, 5000); // Check every 5 seconds
 }
 
+// Track which videos are already displayed
+const displayedVideos = new Set();
+
 function displayVideos(videos) {
     if (videos.length === 0) return;
 
     videosSection.style.display = 'block';
-    videosGrid.innerHTML = '';
 
     videos.forEach(videoPath => {
+        // Skip if video already displayed
+        if (displayedVideos.has(videoPath)) {
+            return;
+        }
+        displayedVideos.add(videoPath);
         const videoCard = document.createElement('div');
         videoCard.className = 'video-card';
 
@@ -763,6 +793,9 @@ function displayJobHistory(jobs) {
 
 async function loadJob(jobId) {
     window.currentJobId = jobId;
+
+    // Clear displayed videos set for loaded job
+    displayedVideos.clear();
 
     try {
         const response = await fetch(`/api/jobs/${jobId}`);
