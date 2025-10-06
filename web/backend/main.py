@@ -65,13 +65,13 @@ async def upload_image(file: UploadFile = File(...)):
             detail=f"File too large. Max size: {MAX_UPLOAD_SIZE / 1024 / 1024}MB"
         )
 
-    # Create job
+    # Create job first to get job_id
     job_id = job_manager.create_job(
-        image_path=UPLOAD_DIR / f"{job_id}{file_ext}",
+        image_path=UPLOAD_DIR / "temp",
         output_dir=OUTPUT_DIR / "temp"
     )
 
-    # Save uploaded image directly
+    # Save uploaded image directly with job_id
     image_path = UPLOAD_DIR / f"{job_id}{file_ext}"
     with open(image_path, 'wb') as f:
         f.write(contents)
