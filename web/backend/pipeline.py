@@ -83,7 +83,7 @@ class PipelineRunner:
             await self._log(job_id, "=== 3DGS Reconstruction Complete ===", log_callback)
 
             # Scan for output files
-            await self._scan_outputs(job_id, reconstruction_output_dir)
+            await self._scan_outputs(job_id, output_dir)
 
             # Mark as completed
             self.job_manager.update_job_status(job_id, JobStatus.COMPLETED)
