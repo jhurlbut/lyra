@@ -46,14 +46,20 @@ export function initViewer() {
     renderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(renderer.domElement);
 
-    // Controls
+    // Controls with rotation limits matching SDG trajectory bounds
     controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.screenSpacePanning = false;
     controls.minDistance = 1;
     controls.maxDistance = 100;
-    controls.maxPolarAngle = Math.PI;
+    // Limit rotation to SDG trajectory angular bounds
+    // Horizontal: ±30° based on radius_x=0.03 spiral
+    controls.minAzimuthAngle = -Math.PI / 6;  // -30°
+    controls.maxAzimuthAngle = Math.PI / 6;   // +30°
+    // Vertical: ±1.1° based on radius_y=0.02 spiral
+    controls.minPolarAngle = Math.PI / 2 - 0.02;  // ~88.9°
+    controls.maxPolarAngle = Math.PI / 2 + 0.02;  // ~91.1°
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
