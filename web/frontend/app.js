@@ -1,4 +1,4 @@
-import { initViewer, loadPLY, resetCamera, toggleCameraLimits, initDebugPanel } from './viewer.js';
+import { initViewer, loadPLY, resetCamera, toggleCameraLimits, initDebugPanel, unloadViewer, reloadViewer } from './viewer.js';
 
 // State (exposed to window for progress simulation)
 window.currentJobId = null;
@@ -55,9 +55,26 @@ const jobsList = document.getElementById('jobs-list');
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initializeUpload();
-    initViewer();  // Fixed: should be initViewer from viewer.js
+    // Don't initialize viewer on page load - only when user clicks load button
     initDebugPanel();  // Initialize debug panel controls
     loadJobHistory();
+
+    // Wire up the "Load 3D Viewer" button
+    const loadViewerBtn = document.getElementById('load-viewer-btn');
+    if (loadViewerBtn) {
+        loadViewerBtn.addEventListener('click', async () => {
+            loadViewerBtn.disabled = true;
+            loadViewerBtn.textContent = 'Loading...';
+
+            // Initialize viewer
+            initViewer();
+
+            // Reload the viewer (which will load the cached PLY)
+            await reloadViewer();
+
+            loadViewerBtn.disabled = false;
+        });
+    }
 });
 
 // Cleanup on page unload to prevent memory leaks
@@ -677,33 +694,7 @@ async function onPipelineComplete() {
 
 async function loadPLYFile() {
     try {
-        // Create loading indicator
-        const viewerContainer = document.getElementById('viewer-container');
-        const loadingIndicator = document.createElement('div');
-        loadingIndicator.id = 'ply-loading-indicator';
-        loadingIndicator.style.cssText = `
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 20px 40px;
-            border-radius: 10px;
-            font-size: 18px;
-            text-align: center;
-            z-index: 1000;
-        `;
-        loadingIndicator.innerHTML = `
-            <div style="margin-bottom: 10px;">⏳ Loading PLY...</div>
-            <div id="ply-progress-text" style="font-size: 24px; font-weight: bold;">0%</div>
-        `;
-
-        // Show viewer section and add loading indicator
-        viewerSection.style.display = 'block';
-        viewerContainer.style.position = 'relative';
-        viewerContainer.appendChild(loadingIndicator);
-
+        // Fetch the PLY to cache the URL
         const response = await fetch(`/api/outputs/${window.currentJobId}/ply`);
         if (!response.ok) {
             throw new Error(`PLY file not found: ${response.status} ${response.statusText}`);
@@ -712,46 +703,23 @@ async function loadPLYFile() {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
 
-        // Progress callback
-        const onProgress = (percentage) => {
-            const progressText = document.getElementById('ply-progress-text');
-            if (progressText) {
-                progressText.textContent = `${percentage}%`;
-            }
-        };
+        // Store the URL for loading when user clicks the button
+        await loadPLY(url, () => {});
 
-        // Pause all videos to improve PLY loading performance
-        document.querySelectorAll('video').forEach(video => {
-            video.pause();
-        });
+        // Show viewer section with placeholder (not loaded yet)
+        viewerSection.style.display = 'block';
+        const placeholder = document.getElementById('viewer-placeholder');
+        if (placeholder) placeholder.style.display = 'block';
 
-        console.log('Starting PLY load...');
-        await loadPLY(url, onProgress);
-        console.log('PLY load complete');
+        // Hide the actual viewer container
+        const viewerContainer = document.getElementById('viewer-container');
+        if (viewerContainer) viewerContainer.style.display = 'none';
 
-        // Remove loading indicator
-        if (loadingIndicator && loadingIndicator.parentNode) {
-            loadingIndicator.remove();
-        }
-
-        // Scroll to viewer
+        // Scroll to viewer section
         viewerSection.scrollIntoView({ behavior: 'smooth' });
     } catch (error) {
-        console.error('Error loading PLY:', error);
-        // Show error message in loading indicator
-        const loadingIndicator = document.getElementById('ply-loading-indicator');
-        if (loadingIndicator) {
-            loadingIndicator.innerHTML = `
-                <div style="color: #ff6b6b;">❌ Error Loading PLY</div>
-                <div style="font-size: 14px; margin-top: 10px;">${error.message}</div>
-            `;
-            // Auto-remove after 5 seconds
-            setTimeout(() => {
-                if (loadingIndicator && loadingIndicator.parentNode) {
-                    loadingIndicator.remove();
-                }
-            }, 5000);
-        }
+        console.error('Error preparing PLY:', error);
+        showError(`Error loading PLY file: ${error.message}`);
     }
 }
 

@@ -6,7 +6,8 @@ let scene, camera, renderer, controls;
 let splatMesh = null;
 let animationId = null;
 let isAnimating = false;
-let intersectionObserver = null;
+let viewerLoaded = false;
+let cachedPlyUrl = null;
 
 // Reference point system
 let raycaster = null;
@@ -107,8 +108,7 @@ export function initViewer() {
     // Initialize reference point system
     initReferencePointSystem();
 
-    // Initialize visibility observer to pause animation when off-screen
-    initVisibilityObserver();
+    viewerLoaded = true;
 }
 
 function initReferencePointSystem() {
@@ -301,38 +301,66 @@ function stopAnimation() {
     console.log('Animation stopped');
 }
 
-function initVisibilityObserver() {
-    const container = document.getElementById('viewer-section');
-    if (!container) return;
+export function unloadViewer() {
+    if (!viewerLoaded) return;
 
-    // Observe when the viewer section enters/exits the viewport
-    intersectionObserver = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                // Viewer is visible - start animation during browser idle time
-                // This avoids blocking scroll/paint operations
-                if ('requestIdleCallback' in window) {
-                    requestIdleCallback(() => {
-                        startAnimation();
-                    }, { timeout: 200 });
-                } else {
-                    // Fallback for browsers without requestIdleCallback
-                    setTimeout(() => startAnimation(), 100);
-                }
-            } else {
-                // Viewer is off-screen - stop animation immediately
-                stopAnimation();
-            }
-        });
-    }, {
-        // Use rootMargin to trigger earlier for smoother experience
-        rootMargin: '100px 0px',
-        // Trigger when any part is visible
-        threshold: 0
-    });
+    console.log('Unloading viewer to free resources...');
 
-    intersectionObserver.observe(container);
-    console.log('Visibility observer initialized for viewer section');
+    // Stop animation
+    stopAnimation();
+
+    // Remove splat mesh from scene
+    if (splatMesh) {
+        scene.remove(splatMesh);
+        splatMesh = null;
+    }
+
+    // Clear the container
+    const container = document.getElementById('viewer-container');
+    if (container && renderer) {
+        container.removeChild(renderer.domElement);
+    }
+
+    // Dispose renderer
+    if (renderer) {
+        renderer.dispose();
+        renderer = null;
+    }
+
+    // Clear scene
+    if (scene) {
+        scene.clear();
+        scene = null;
+    }
+
+    camera = null;
+    controls = null;
+    viewerLoaded = false;
+
+    // Show placeholder, hide viewer container
+    const placeholder = document.getElementById('viewer-placeholder');
+    if (placeholder) placeholder.style.display = 'block';
+    if (container) container.style.display = 'none';
+
+    console.log('Viewer unloaded');
+}
+
+export async function reloadViewer() {
+    if (viewerLoaded || !cachedPlyUrl) return;
+
+    console.log('Reloading viewer...');
+
+    // Hide placeholder, show viewer container
+    const placeholder = document.getElementById('viewer-placeholder');
+    const container = document.getElementById('viewer-container');
+    if (placeholder) placeholder.style.display = 'none';
+    if (container) container.style.display = 'block';
+
+    // Reinitialize viewer
+    initViewer();
+
+    // Reload the PLY
+    await loadPLY(cachedPlyUrl);
 }
 
 function onWindowResize() {
@@ -351,6 +379,9 @@ function onWindowResize() {
 
 export async function loadPLY(url, onProgress = null) {
     console.log('Loading Gaussian Splat PLY from:', url);
+
+    // Cache the URL for reload functionality
+    cachedPlyUrl = url;
 
     // Remove existing mesh
     if (splatMesh) {
@@ -644,11 +675,6 @@ export function toggleCameraLimits() {
 export function disposeViewer() {
     stopAnimation();
 
-    if (intersectionObserver) {
-        intersectionObserver.disconnect();
-        intersectionObserver = null;
-    }
-
     if (splatMesh) {
         scene.remove(splatMesh);
         splatMesh = null;
@@ -659,6 +685,9 @@ export function disposeViewer() {
     }
 
     window.removeEventListener('resize', onWindowResize);
+
+    viewerLoaded = false;
+    cachedPlyUrl = null;
 }
 
 // ============================================================================

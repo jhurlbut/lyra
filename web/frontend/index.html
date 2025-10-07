@@ -99,6 +99,17 @@
                     <button id="download-ply" class="btn-primary">Download PLY</button>
                     <button id="toggle-camera-limits" class="btn-secondary">🔓 Unlock Camera</button>
                 </div>
+
+                <!-- Viewer Placeholder (shown when viewer is unloaded) -->
+                <div id="viewer-placeholder" style="display: none; position: relative; width: 100%; height: 600px; background: #1a1a1a; border-radius: 8px; overflow: hidden;">
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #fff;">
+                        <button id="load-viewer-btn" class="btn-primary" style="font-size: 18px; padding: 15px 30px;">
+                            ▶ Load 3D Viewer
+                        </button>
+                        <p style="margin-top: 15px; color: #94a3b8; font-size: 14px;">Click to load the interactive 3D Gaussian splat viewer</p>
+                    </div>
+                </div>
+
                 <div id="viewer-container" class="viewer-container"></div>
                 <div class="viewer-instructions">
                     <p><strong>Controls:</strong> Left-click to rotate • Press <kbd>D</kbd> for debug panel</p>
