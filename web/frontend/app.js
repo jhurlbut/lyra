@@ -728,6 +728,14 @@ async function loadPLYFile() {
             console.error('[LOAD] Placeholder element not found!');
         }
 
+        // Reset the load button state
+        const loadViewerBtn = document.getElementById('load-viewer-btn');
+        if (loadViewerBtn) {
+            loadViewerBtn.disabled = false;
+            loadViewerBtn.textContent = '▶ Load 3D Viewer';
+            console.log('[LOAD] Load button reset to enabled state');
+        }
+
         // Hide the actual viewer container
         if (viewerContainer) {
             viewerContainer.style.display = 'none';
