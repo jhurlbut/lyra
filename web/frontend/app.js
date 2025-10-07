@@ -63,20 +63,27 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadViewerBtn = document.getElementById('load-viewer-btn');
     if (loadViewerBtn) {
         loadViewerBtn.addEventListener('click', async () => {
+            console.log('[BTN] Load 3D Viewer button clicked');
             try {
                 loadViewerBtn.disabled = true;
                 loadViewerBtn.textContent = 'Loading...';
+                console.log('[BTN] Button disabled, calling reloadViewer()...');
 
                 // Load the viewer with cached PLY
                 await reloadViewer();
 
+                console.log('[BTN] reloadViewer() completed successfully');
+
                 // Hide the button after successful load
                 const placeholder = document.getElementById('viewer-placeholder');
                 if (placeholder) placeholder.style.display = 'none';
+                console.log('[BTN] Placeholder hidden, load complete');
             } catch (error) {
-                console.error('Error loading viewer:', error);
+                console.error('[BTN] Error loading viewer:', error);
+                console.error('[BTN] Error stack:', error.stack);
                 loadViewerBtn.textContent = 'Load 3D Viewer';
                 loadViewerBtn.disabled = false;
+                console.log('[BTN] Button re-enabled after error');
             }
         });
     }

@@ -34,18 +34,19 @@ let cameraSettings = {
 };
 
 export function initViewer() {
+    console.log('[INIT] initViewer() ENTRY');
     const container = document.getElementById('viewer-container');
-    
+
     // Ensure container has dimensions
     if (!container) {
-        console.error('Viewer container not found');
+        console.error('[INIT] Viewer container not found - EXITING');
         return;
     }
-    
+
     // Get actual dimensions (fallback to defaults if 0)
     const width = container.clientWidth || 800;
     const height = container.clientHeight || 600;
-    console.log('Initializing viewer with dimensions:', width, height);
+    console.log('[INIT] Initializing viewer with dimensions:', width, height);
 
     // Scene
     scene = new THREE.Scene();
@@ -108,7 +109,9 @@ export function initViewer() {
     // Initialize reference point system
     initReferencePointSystem();
 
+    console.log('[INIT] Setting viewerLoaded = true');
     viewerLoaded = true;
+    console.log('[INIT] initViewer() EXIT');
 }
 
 function initReferencePointSystem() {
@@ -346,26 +349,35 @@ export function unloadViewer() {
 }
 
 export async function reloadViewer() {
+    console.log('[RELOAD] reloadViewer() ENTRY - viewerLoaded:', viewerLoaded, 'cachedPlyUrl:', cachedPlyUrl ? 'set' : 'null');
+
     if (!cachedPlyUrl) {
-        console.warn('No cached PLY URL to load');
+        console.warn('[RELOAD] No cached PLY URL to load - EXITING');
         return;
     }
 
-    console.log('Loading viewer with cached PLY...');
+    console.log('[RELOAD] Loading viewer with cached PLY...');
 
     // Hide placeholder, show viewer container
     const placeholder = document.getElementById('viewer-placeholder');
     const container = document.getElementById('viewer-container');
+    console.log('[RELOAD] Hiding placeholder, showing container');
     if (placeholder) placeholder.style.display = 'none';
     if (container) container.style.display = 'block';
 
     // Initialize viewer if not already loaded
     if (!viewerLoaded) {
+        console.log('[RELOAD] viewerLoaded is false, calling initViewer()');
         initViewer();
+        console.log('[RELOAD] initViewer() completed');
+    } else {
+        console.log('[RELOAD] viewerLoaded is true, SKIPPING initViewer()');
     }
 
     // Load the PLY
+    console.log('[RELOAD] Calling loadPLY() with URL:', cachedPlyUrl);
     await loadPLY(cachedPlyUrl);
+    console.log('[RELOAD] loadPLY() completed - EXIT');
 }
 
 function onWindowResize() {
@@ -389,32 +401,40 @@ export function cachePLYUrl(url) {
 }
 
 export async function loadPLY(url, onProgress = null) {
-    console.log('Loading Gaussian Splat PLY from:', url);
+    console.log('[PLY] loadPLY() ENTRY - URL:', url);
 
     // Cache the URL for reload functionality
     cachedPlyUrl = url;
+    console.log('[PLY] Cached PLY URL');
 
     // Remove existing mesh
     if (splatMesh) {
+        console.log('[PLY] Removing existing splatMesh from scene');
         scene.remove(splatMesh);
         splatMesh = null;
+        console.log('[PLY] Old mesh removed');
+    } else {
+        console.log('[PLY] No existing mesh to remove');
     }
 
     // Dynamically import SparkJS (ES module)
+    console.log('[PLY] Importing SparkJS module...');
     const Spark = await import('@sparkjsdev/spark');
-    console.log('SparkJS loaded:', Spark);
+    console.log('[PLY] SparkJS loaded:', Spark);
 
     // Store Spark globally for sorting functions
     window.Spark = Spark;
 
     // Use SplatLoader with progress tracking
+    console.log('[PLY] Creating SplatLoader...');
     const loader = new Spark.SplatLoader();
+    console.log('[PLY] SplatLoader created, calling loadAsync()...');
     return loader.loadAsync(url, (event) => {
         if (event.type === "progress") {
             const progress = event.lengthComputable
                 ? `${((event.loaded / event.total) * 100).toFixed(2)}%`
                 : `${event.loaded} bytes`;
-            console.log(`Background download progress: ${progress}`);
+            console.log(`[PLY] Background download progress: ${progress}`);
 
             // Call custom progress callback if provided
             if (onProgress && event.lengthComputable) {
@@ -424,7 +444,7 @@ export async function loadPLY(url, onProgress = null) {
         }
     })
     .then((packedSplats) => {
-        console.log('Splat data loaded, creating mesh...');
+        console.log('[PLY] loadAsync() RESOLVED - Splat data loaded, creating mesh...');
 
         // Create SplatMesh from loaded data
         splatMesh = new Spark.SplatMesh({ packedSplats });
@@ -492,11 +512,13 @@ export async function loadPLY(url, onProgress = null) {
             viewerSection.style.display = 'block';
         }
 
-        console.log('Gaussian splat loaded and displayed with SparkJS!');
+        console.log('[PLY] Gaussian splat loaded and displayed with SparkJS!');
+        console.log('[PLY] loadPLY() EXIT - returning true');
         return true;
     })
     .catch((error) => {
-        console.error('Error loading Gaussian splat with SparkJS:', error);
+        console.error('[PLY] loadAsync() REJECTED - Error loading Gaussian splat with SparkJS:', error);
+        console.error('[PLY] Error stack:', error.stack);
 
         // Show error in viewer
         const container = document.getElementById('viewer-container');
