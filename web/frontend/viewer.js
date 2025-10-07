@@ -280,6 +280,13 @@ function animate() {
 function startAnimation() {
     if (isAnimating) return;
     isAnimating = true;
+
+    // Render one frame immediately to avoid expensive first-frame cost during scroll
+    if (renderer && scene && camera && controls) {
+        controls.update();
+        renderer.render(scene, camera);
+    }
+
     animate();
     console.log('Animation started');
 }
@@ -302,22 +309,26 @@ function initVisibilityObserver() {
     intersectionObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
-                // Viewer is visible - start animation with slight delay to avoid scroll jank
-                setTimeout(() => {
-                    if (entry.isIntersecting) {
+                // Viewer is visible - start animation during browser idle time
+                // This avoids blocking scroll/paint operations
+                if ('requestIdleCallback' in window) {
+                    requestIdleCallback(() => {
                         startAnimation();
-                    }
-                }, 100);
+                    }, { timeout: 200 });
+                } else {
+                    // Fallback for browsers without requestIdleCallback
+                    setTimeout(() => startAnimation(), 100);
+                }
             } else {
                 // Viewer is off-screen - stop animation immediately
                 stopAnimation();
             }
         });
     }, {
-        // Use rootMargin to trigger earlier/later
-        rootMargin: '50px',
-        // Trigger when crossing threshold
-        threshold: [0, 0.1]
+        // Use rootMargin to trigger earlier for smoother experience
+        rootMargin: '100px 0px',
+        // Trigger when any part is visible
+        threshold: 0
     });
 
     intersectionObserver.observe(container);
@@ -425,6 +436,13 @@ export async function loadPLY(url, onProgress = null) {
         // Update controls target to origin
         controls.target.set(0, 0, 0);
         controls.update();
+
+        // Pre-warm the renderer with an initial render to avoid first-frame freeze
+        // This performs the expensive splat sorting/GPU buffer updates now
+        // instead of when the viewer first scrolls into view
+        console.log('Pre-warming renderer with initial frame...');
+        renderer.render(scene, camera);
+        console.log('Initial frame rendered');
 
         // Make viewer section visible
         const viewerSection = document.getElementById('viewer-section');
