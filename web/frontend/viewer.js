@@ -9,6 +9,11 @@ let isAnimating = false;
 let viewerLoaded = false;
 let cachedPlyUrl = null;
 
+// Helper to check if viewer is currently loaded
+export function isViewerLoaded() {
+    return viewerLoaded;
+}
+
 // Reference point system
 let raycaster = null;
 let mouse = new THREE.Vector2();

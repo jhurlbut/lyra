@@ -1,4 +1,4 @@
-import { initViewer, loadPLY, resetCamera, toggleCameraLimits, initDebugPanel, unloadViewer, reloadViewer, cachePLYUrl } from './viewer.js';
+import { initViewer, loadPLY, resetCamera, toggleCameraLimits, initDebugPanel, unloadViewer, reloadViewer, cachePLYUrl, isViewerLoaded } from './viewer.js';
 
 // State (exposed to window for progress simulation)
 window.currentJobId = null;
@@ -86,6 +86,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('[BTN] Button re-enabled after error');
             }
         });
+    }
+
+    // Setup Intersection Observer to unload viewer when scrolled out of view
+    const observerOptions = {
+        root: null, // viewport
+        rootMargin: '0px',
+        threshold: 0.1 // Trigger when less than 10% visible
+    };
+
+    const viewerObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            // When viewer scrolls OUT of view and is currently loaded
+            if (!entry.isIntersecting && isViewerLoaded()) {
+                console.log('[OBSERVER] Viewer scrolled out of view, unloading...');
+                unloadViewer();
+            }
+        });
+    }, observerOptions);
+
+    // Start observing the viewer section
+    if (viewerSection) {
+        viewerObserver.observe(viewerSection);
+        console.log('[OBSERVER] Watching viewer section for visibility changes');
     }
 });
 
