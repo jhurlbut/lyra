@@ -5,6 +5,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 let scene, camera, renderer, controls;
 let splatMesh = null;
 let animationId = null;
+let isAnimating = false;
+let intersectionObserver = null;
 
 // Reference point system
 let raycaster = null;
@@ -57,8 +59,8 @@ export function initViewer() {
     );
     camera.position.set(0, 0, 5);
 
-    // Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    // Renderer (antialias disabled for better SparkJS performance)
+    renderer = new THREE.WebGLRenderer({ antialias: false });
     renderer.setSize(width, height);
     renderer.setPixelRatio(window.devicePixelRatio);
     container.appendChild(renderer.domElement);
@@ -89,10 +91,13 @@ export function initViewer() {
     window.addEventListener('resize', onWindowResize);
 
     // Start animation loop
-    animate();
+    startAnimation();
 
     // Initialize reference point system
     initReferencePointSystem();
+
+    // Initialize visibility observer to pause animation when off-screen
+    initVisibilityObserver();
 }
 
 function initReferencePointSystem() {
@@ -254,10 +259,52 @@ function clearReferencePoint() {
 }
 
 function animate() {
-    animationId = requestAnimationFrame(animate);
+    if (!isAnimating) return;
 
+    animationId = requestAnimationFrame(animate);
     controls.update();
     renderer.render(scene, camera);
+}
+
+function startAnimation() {
+    if (isAnimating) return;
+    isAnimating = true;
+    animate();
+    console.log('Animation started');
+}
+
+function stopAnimation() {
+    if (!isAnimating) return;
+    isAnimating = false;
+    if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = null;
+    }
+    console.log('Animation stopped');
+}
+
+function initVisibilityObserver() {
+    const container = document.getElementById('viewer-section');
+    if (!container) return;
+
+    // Observe when the viewer section enters/exits the viewport
+    intersectionObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                // Viewer is visible - start animation
+                startAnimation();
+            } else {
+                // Viewer is off-screen - stop animation to improve performance
+                stopAnimation();
+            }
+        });
+    }, {
+        // Trigger when at least 10% of the viewer is visible
+        threshold: 0.1
+    });
+
+    intersectionObserver.observe(container);
+    console.log('Visibility observer initialized for viewer section');
 }
 
 function onWindowResize() {
@@ -560,8 +607,11 @@ export function toggleCameraLimits() {
 }
 
 export function disposeViewer() {
-    if (animationId) {
-        cancelAnimationFrame(animationId);
+    stopAnimation();
+
+    if (intersectionObserver) {
+        intersectionObserver.disconnect();
+        intersectionObserver = null;
     }
 
     if (splatMesh) {
