@@ -60,9 +60,20 @@ export function initViewer() {
     camera.position.set(0, 0, 5);
 
     // Renderer (antialias disabled for better SparkJS performance)
-    renderer = new THREE.WebGLRenderer({ antialias: false });
+    renderer = new THREE.WebGLRenderer({
+        antialias: false,
+        powerPreference: 'high-performance',
+        alpha: false,
+        stencil: false
+    });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    // Limit pixel ratio to max 2 for better performance
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // Add CSS hardware acceleration hints
+    renderer.domElement.style.transform = 'translateZ(0)';
+    renderer.domElement.style.willChange = 'transform';
+
     container.appendChild(renderer.domElement);
 
     // Controls with rotation limits matching SDG trajectory bounds
@@ -291,16 +302,22 @@ function initVisibilityObserver() {
     intersectionObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
-                // Viewer is visible - start animation
-                startAnimation();
+                // Viewer is visible - start animation with slight delay to avoid scroll jank
+                setTimeout(() => {
+                    if (entry.isIntersecting) {
+                        startAnimation();
+                    }
+                }, 100);
             } else {
-                // Viewer is off-screen - stop animation to improve performance
+                // Viewer is off-screen - stop animation immediately
                 stopAnimation();
             }
         });
     }, {
-        // Trigger when at least 10% of the viewer is visible
-        threshold: 0.1
+        // Use rootMargin to trigger earlier/later
+        rootMargin: '50px',
+        // Trigger when crossing threshold
+        threshold: [0, 0.1]
     });
 
     intersectionObserver.observe(container);
