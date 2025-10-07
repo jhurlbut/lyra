@@ -346,9 +346,12 @@ export function unloadViewer() {
 }
 
 export async function reloadViewer() {
-    if (viewerLoaded || !cachedPlyUrl) return;
+    if (!cachedPlyUrl) {
+        console.warn('No cached PLY URL to load');
+        return;
+    }
 
-    console.log('Reloading viewer...');
+    console.log('Loading viewer with cached PLY...');
 
     // Hide placeholder, show viewer container
     const placeholder = document.getElementById('viewer-placeholder');
@@ -356,10 +359,12 @@ export async function reloadViewer() {
     if (placeholder) placeholder.style.display = 'none';
     if (container) container.style.display = 'block';
 
-    // Reinitialize viewer
-    initViewer();
+    // Initialize viewer if not already loaded
+    if (!viewerLoaded) {
+        initViewer();
+    }
 
-    // Reload the PLY
+    // Load the PLY
     await loadPLY(cachedPlyUrl);
 }
 
@@ -375,6 +380,12 @@ function onWindowResize() {
     camera.updateProjectionMatrix();
 
     renderer.setSize(width, height);
+}
+
+// Cache PLY URL without loading (for deferred loading)
+export function cachePLYUrl(url) {
+    cachedPlyUrl = url;
+    console.log('PLY URL cached for later loading:', url);
 }
 
 export async function loadPLY(url, onProgress = null) {

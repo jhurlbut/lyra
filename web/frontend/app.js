@@ -1,4 +1,4 @@
-import { initViewer, loadPLY, resetCamera, toggleCameraLimits, initDebugPanel, unloadViewer, reloadViewer } from './viewer.js';
+import { initViewer, loadPLY, resetCamera, toggleCameraLimits, initDebugPanel, unloadViewer, reloadViewer, cachePLYUrl } from './viewer.js';
 
 // State (exposed to window for progress simulation)
 window.currentJobId = null;
@@ -66,10 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
             loadViewerBtn.disabled = true;
             loadViewerBtn.textContent = 'Loading...';
 
-            // Initialize viewer
-            initViewer();
-
-            // Reload the viewer (which will load the cached PLY)
+            // Load the viewer with cached PLY
             await reloadViewer();
 
             loadViewerBtn.disabled = false;
@@ -703,8 +700,8 @@ async function loadPLYFile() {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
 
-        // Store the URL for loading when user clicks the button
-        await loadPLY(url, () => {});
+        // Cache the URL for later loading (don't initialize viewer yet)
+        cachePLYUrl(url);
 
         // Show viewer section with placeholder (not loaded yet)
         viewerSection.style.display = 'block';
