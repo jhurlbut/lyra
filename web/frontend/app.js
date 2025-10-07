@@ -700,6 +700,8 @@ async function onPipelineComplete() {
 
 async function loadPLYFile() {
     try {
+        console.log('[LOAD] loadPLYFile() called for job:', window.currentJobId);
+
         // Fetch the PLY to cache the URL
         const response = await fetch(`/api/outputs/${window.currentJobId}/ply`);
         if (!response.ok) {
@@ -708,6 +710,7 @@ async function loadPLYFile() {
 
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
+        console.log('[LOAD] PLY blob URL created:', url);
 
         // Cache the URL for later loading (don't initialize viewer yet)
         cachePLYUrl(url);
@@ -715,11 +718,21 @@ async function loadPLYFile() {
         // Show viewer section with placeholder (not loaded yet)
         viewerSection.style.display = 'block';
         const placeholder = document.getElementById('viewer-placeholder');
-        if (placeholder) placeholder.style.display = 'block';
+        const viewerContainer = document.getElementById('viewer-container');
+
+        console.log('[LOAD] Showing placeholder, hiding viewer container');
+        if (placeholder) {
+            placeholder.style.display = 'block';
+            console.log('[LOAD] Placeholder display set to block');
+        } else {
+            console.error('[LOAD] Placeholder element not found!');
+        }
 
         // Hide the actual viewer container
-        const viewerContainer = document.getElementById('viewer-container');
-        if (viewerContainer) viewerContainer.style.display = 'none';
+        if (viewerContainer) {
+            viewerContainer.style.display = 'none';
+            console.log('[LOAD] Viewer container hidden');
+        }
     } catch (error) {
         console.error('Error preparing PLY:', error);
         showError(`Error loading PLY file: ${error.message}`);
