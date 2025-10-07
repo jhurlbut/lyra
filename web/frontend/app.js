@@ -286,9 +286,6 @@ async function startProcessing() {
 function showProcessingUI() {
     progressSection.style.display = 'block';
     consoleSection.style.display = 'block';
-
-    // Scroll to progress section
-    progressSection.scrollIntoView({ behavior: 'smooth' });
 }
 
 function startLogStream() {
@@ -328,9 +325,6 @@ function appendLog(message) {
     line.className = 'log-line';
     line.textContent = message;
     consoleOutput.appendChild(line);
-
-    // Auto-scroll to bottom
-    consoleOutput.scrollTop = consoleOutput.scrollHeight;
 }
 
 function updateStage(stage, completed) {
@@ -719,9 +713,6 @@ async function loadPLYFile() {
         // Hide the actual viewer container
         const viewerContainer = document.getElementById('viewer-container');
         if (viewerContainer) viewerContainer.style.display = 'none';
-
-        // Scroll to viewer section
-        viewerSection.scrollIntoView({ behavior: 'smooth' });
     } catch (error) {
         console.error('Error preparing PLY:', error);
         showError(`Error loading PLY file: ${error.message}`);
