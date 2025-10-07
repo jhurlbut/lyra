@@ -63,13 +63,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadViewerBtn = document.getElementById('load-viewer-btn');
     if (loadViewerBtn) {
         loadViewerBtn.addEventListener('click', async () => {
-            loadViewerBtn.disabled = true;
-            loadViewerBtn.textContent = 'Loading...';
+            try {
+                loadViewerBtn.disabled = true;
+                loadViewerBtn.textContent = 'Loading...';
 
-            // Load the viewer with cached PLY
-            await reloadViewer();
+                // Load the viewer with cached PLY
+                await reloadViewer();
 
-            loadViewerBtn.disabled = false;
+                // Hide the button after successful load
+                const placeholder = document.getElementById('viewer-placeholder');
+                if (placeholder) placeholder.style.display = 'none';
+            } catch (error) {
+                console.error('Error loading viewer:', error);
+                loadViewerBtn.textContent = 'Load 3D Viewer';
+                loadViewerBtn.disabled = false;
+            }
         });
     }
 });
