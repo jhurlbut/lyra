@@ -162,3 +162,37 @@ dataset_registry['lyra_dynamic_demo_generated'] = {
     'max_gap': 121,
     'min_gap': 45,
 }
+
+# Duck demo dataset
+dataset_registry["lyra_duck_demo"] = {
+    "cls": RadymWrapper,
+    "kwargs": {
+        "root_path": "/home/colligo/lyra/assets/demo/static/diffusion_output_duck",
+        "is_static": True,
+        "is_multi_view": True,
+        "has_latents": True,
+        "is_generated_cosmos_latent": True,
+        "sampling_buckets": [["0", "1", "2", "3", "4", "5"]],
+        "start_view_idx": 0,
+    },
+    "scene_scale": 1.,
+    "max_gap": 121,
+    "min_gap": 45,
+}
+
+# Web pipeline job (dynamically generated)
+dataset_registry['lyra_web_job'] = {
+    'cls': RadymWrapper,
+    'kwargs': {
+        "root_path": "/home/colligo/lyra/web/outputs/1f9b3535-94de-44e9-83d4-cb84884796e2/latents",
+        "is_static": True,
+        "is_multi_view": True,
+        "has_latents": True,
+        "is_generated_cosmos_latent": True,
+        "sampling_buckets": [['0']],
+        "start_view_idx": 0,
+    },
+    'scene_scale': 1.,
+    'max_gap': 121,
+    'min_gap': 45,
+}
